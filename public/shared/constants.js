@@ -10,7 +10,7 @@ export const MAX_PLAYERS = 24;
 export const VIEW_RADIUS = 1250;
 
 export const TEAM = { NEUTRAL: -1, BOSS: -2, ENV: -3, BLUE: 0, RED: 1 };
-export const TEAM_COLORS = ['#38a3ff', '#ff4d61', '#47d97c', '#c26bff'];
+export const TEAM_COLORS = ['#3ca7d8', '#e8464f', '#3fc77a', '#a868e0'];
 export const FFA_COLOR = '#ff4d61';
 export const SELF_COLOR = '#38a3ff';
 
@@ -44,6 +44,8 @@ export const MODES = {
   ffa: { name: 'Arena FFA', teams: false, desc: 'Open arena. Every tank for itself.' },
   tdm: { name: 'Team Arena', teams: true, desc: 'Two teams, open arena, bosses roam the centre.' },
   nexus: { name: 'Nexus Siege', teams: true, desc: 'Break the enemy shield generators, then the Nexus.' },
+  maze: { name: 'Maze', teams: false, desc: 'Arras-style maze. Long corridors, dead ends, shapes everywhere.' },
+  maze_team: { name: 'Maze Teams', teams: true, desc: 'Two teams, bases in opposite corners of a maze.' },
   labyrinth: { name: 'Labyrinth', teams: false, desc: 'Procedural maze. Secrets, elites and boss chambers.' },
   labyrinth_team: { name: 'Labyrinth Teams', teams: true, desc: 'Procedural maze, two teams.' },
   sandbox: { name: 'Sandbox', teams: false, desc: 'Pick any of the 1,000+ tanks and summon bosses.' }

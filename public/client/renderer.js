@@ -1,4 +1,4 @@
-import { TILE, TILES, VIEW_RADIUS, TEAM, TEAM_COLORS } from '../shared/constants.js';
+import { TILE, TILES, VIEW_RADIUS, TEAM, TEAM_COLORS, MODES } from '../shared/constants.js';
 import { tankByIndex } from '../shared/tank-registry.js';
 import { SHAPES, SHAPE_KEYS, MOBS, MOB_KEYS, STRUCT_BY_CODE, HAZ, MAP_THEMES } from '../shared/entity-types.js';
 import { BOSSES } from '../shared/boss-registry.js';
@@ -7,9 +7,16 @@ import { drawTank, drawShape, drawMob, drawBoss, drawStruct, drawPickup, poly, s
 import { sfx } from './audio.js';
 import { store } from './storage.js';
 
-const THEME_STYLE = {
-  arena: { floor: '#151a23', grid: 'rgba(255,255,255,0.035)', wall: '#2b3242' },
-  nexus: { floor: '#141922', grid: 'rgba(255,255,255,0.035)', wall: '#2e3546' }
+const LIGHT = {
+  arena: { floor: '#dcdcdc', wall: '#a5a5ad', out: '#c2c2c7' },
+  nexus: { floor: '#dcdcdc', wall: '#a5a5ad', out: '#c2c2c7' },
+  maze: { floor: '#dcdcdc', wall: '#a5a5ad', out: '#c2c2c7' },
+  classic: { floor: '#dadada', wall: '#a2a2aa', out: '#c0c0c5' },
+  crystal: { floor: '#d7e5ec', wall: '#8eb0c3', out: '#bccdd6' },
+  industrial: { floor: '#dad7d2', wall: '#a39c91', out: '#c4c0b9' },
+  overgrown: { floor: '#d6e4d2', wall: '#8ea887', out: '#bfcdbb' },
+  void: { floor: '#dcd7e9', wall: '#9d93ba', out: '#c4bfd3' },
+  endless: { floor: '#d9d9df', wall: '#a3a0ae', out: '#c1c0c8' }
 };
 
 export class Renderer {
@@ -41,7 +48,7 @@ export class Renderer {
     this.map = { w: m.w, h: m.h, tiles: decodeTiles(m.tiles), theme: m.theme, kind: m.kind, regions: m.regions || [], conveyors: new Map(m.conveyors || []) };
     this.mode = mode;
     this.fog = !!settings.fog && (m.kind === 'labyrinth');
-    this.teams = mode === 'tdm' || mode === 'nexus' || mode === 'labyrinth_team';
+    this.teams = !!(MODES[mode] && MODES[mode].teams);
     this.explored = new Uint8Array(m.w * m.h);
     this.snaps = [];
     this.offset = null;
@@ -59,7 +66,7 @@ export class Renderer {
     const fog = document.createElement('canvas');
     fog.width = w; fog.height = h;
     const fc = fog.getContext('2d');
-    fc.fillStyle = '#05070b';
+    fc.fillStyle = '#8c8c94';
     fc.fillRect(0, 0, w, h);
     this.mmFog = fog;
     this.paintMinimapBase();
@@ -71,17 +78,17 @@ export class Renderer {
     const img = c.createImageData(w, h);
     const col = t => {
       switch (t) {
-        case TILES.WALL: return [70, 80, 100];
-        case TILES.BREAK: return [120, 95, 70];
+        case TILES.WALL: return [150, 150, 158];
+        case TILES.BREAK: return [175, 150, 125];
         case TILES.CRYSTAL: return [110, 190, 230];
         case TILES.DOOR: return [200, 170, 60];
         case TILES.VINE: return [70, 150, 70];
         case TILES.ENERGY: return [140, 40, 50];
         case TILES.TELEPORT: return [170, 100, 255];
-        case TILES.BASE_BLUE: return [20, 45, 75];
-        case TILES.BASE_RED: return [75, 22, 30];
+        case TILES.BASE_BLUE: return [160, 205, 228];
+        case TILES.BASE_RED: return [232, 175, 178];
         case TILES.TEMP: return [180, 180, 200];
-        default: return [18, 22, 30];
+        default: return [214, 214, 216];
       }
     };
     for (let i = 0; i < tiles.length; i++) {
@@ -157,13 +164,13 @@ export class Renderer {
         case 'hit': this.burst(f[1], f[2], 3, f[3] ? '#ffffff' : '#ffe2a0', 140, 2, 0.25); if (f[3]) sfx.hit(); break;
         case 'pop': this.burst(f[1], f[2], Math.min(14, 4 + (f[3] / 6) | 0), '#ffd84d', 120, 4, 0.5); this.addParticle({ k: 'frag', x: f[1], y: f[2], r: f[3], sides: f[4] || 4, life: 0.3 }); break;
         case 'boom': this.ring(f[1], f[2], f[3], 'rgba(255,170,80,0.9)', 0.4, 5); this.burst(f[1], f[2], 10, '#ffb86b', 260, 4, 0.45); this.addShake(f[3] / 25, f[1], f[2]); sfx.boom(f[3] > 140); break;
-        case 'death': this.ring(f[1], f[2], f[3] * 3, 'rgba(255,255,255,0.8)', 0.5, 4); this.burst(f[1], f[2], 24, '#ffffff', 300, 4, 0.7); this.addShake(6, f[1], f[2]); break;
+        case 'death': this.ring(f[1], f[2], f[3] * 3, 'rgba(80,80,90,0.8)', 0.5, 4); this.burst(f[1], f[2], 24, '#6a6f7a', 300, 4, 0.7); this.addShake(6, f[1], f[2]); break;
         case 'beam': this.beams.push({ pts: f[1], team: f[2], heal: f[3], life: 0.14, t: 0 }); if (this.beams.length > 80) this.beams.shift(); break;
         case 'arc': this.addParticle({ k: 'bolt', x: f[1], y: f[2], x2: f[3], y2: f[4], life: 0.18, color: '#9ee8ff' }); break;
         case 'tele': this.ring(f[1], f[2], 50, 'rgba(176,107,255,0.9)', 0.4, 4); this.ring(f[3], f[4], 50, 'rgba(176,107,255,0.9)', 0.5, 4); break;
         case 'bossSpawn': this.ring(f[1], f[2], f[3] * 4, 'rgba(255,77,97,0.9)', 1.1, 8); this.ring(f[1], f[2], f[3] * 2, 'rgba(255,255,255,0.8)', 0.7, 5); this.addShake(14, f[1], f[2]); sfx.boss(); break;
         case 'bossDeath': for (let i = 0; i < 4; i++) this.ring(f[1], f[2], f[3] * (1.5 + i), 'rgba(255,216,77,0.9)', 0.6 + i * 0.25, 6); this.burst(f[1], f[2], 60, '#ffd84d', 500, 5, 1.2); this.addShake(18, f[1], f[2]); sfx.boom(true); break;
-        case 'phase': this.ring(f[1], f[2], f[3] * 2.4, 'rgba(255,255,255,0.85)', 0.7, 6); this.addShake(5, f[1], f[2]); break;
+        case 'phase': this.ring(f[1], f[2], f[3] * 2.4, 'rgba(60,60,70,0.7)', 0.7, 6); this.addShake(5, f[1], f[2]); break;
         case 'heal': for (let i = 0; i < 3; i++) this.addParticle({ k: 'plus', x: f[1] + (Math.random() - 0.5) * 30, y: f[2] + (Math.random() - 0.5) * 30, vx: 0, vy: -40, life: 0.6, color: '#6fe36b' }); break;
         case 'reflect': case 'spark': this.burst(f[1], f[2], 4, '#dff6ff', 180, 2, 0.25); break;
         case 'rare': for (let i = 0; i < 10; i++) this.addParticle({ k: 'dot', x: f[1] + (Math.random() - 0.5) * 40, y: f[2] + (Math.random() - 0.5) * 40, vx: 0, vy: -60, life: 0.9, size: 3, color: '#c690ff' }); break;
@@ -238,9 +245,9 @@ export class Renderer {
     this.cam.x = cx; this.cam.y = cy; this.cam.scale = scale;
     let sx = 0, sy = 0;
     if (this.shake > 0.1) { sx = (Math.random() - 0.5) * this.shake * this.dpr; sy = (Math.random() - 0.5) * this.shake * this.dpr; this.shake *= Math.exp(-dt * 9); } else this.shake = 0;
-    const theme = MAP_THEMES[this.map.theme] || THEME_STYLE[this.map.theme] || THEME_STYLE.arena;
+    const theme = LIGHT[this.map.theme] || LIGHT.arena;
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.fillStyle = '#05070b';
+    ctx.fillStyle = theme.out;
     ctx.fillRect(0, 0, W, H);
     ctx.setTransform(scale, 0, 0, scale, W / 2 - cx * scale + sx, H / 2 - cy * scale + sy);
     const vx0 = cx - W / 2 / scale, vy0 = cy - H / 2 / scale, vx1 = cx + W / 2 / scale, vy1 = cy + H / 2 / scale;
@@ -328,7 +335,7 @@ export class Renderer {
     const gs = 32;
     for (let x = Math.ceil(Math.max(0, x0) / gs) * gs; x <= Math.min(w * TILE, x1); x += gs) { ctx.moveTo(x, Math.max(0, y0)); ctx.lineTo(x, Math.min(h * TILE, y1)); }
     for (let y = Math.ceil(Math.max(0, y0) / gs) * gs; y <= Math.min(h * TILE, y1); y += gs) { ctx.moveTo(Math.max(0, x0), y); ctx.lineTo(Math.min(w * TILE, x1), y); }
-    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(255,255,255,0.04)'; ctx.stroke();
+    ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(0,0,0,0.07)'; ctx.stroke();
     const paths = {};
     const add = (k, x, y) => { (paths[k] = paths[k] || []).push(x, y); };
     for (let ty = ty0; ty <= ty1; ty++) for (let tx = tx0; tx <= tx1; tx++) {
@@ -343,14 +350,14 @@ export class Renderer {
       if (fill) { ctx.fillStyle = fill; ctx.fill(); }
       if (stroke) { ctx.lineWidth = 2; ctx.strokeStyle = stroke; ctx.stroke(); }
     };
-    rects(paths[TILES.BASE_BLUE], 'rgba(56,163,255,0.08)');
-    rects(paths[TILES.BASE_RED], 'rgba(255,77,97,0.08)');
-    rects(paths[TILES.MOSS], 'rgba(90,160,70,0.22)');
+    rects(paths[TILES.BASE_BLUE], 'rgba(60,167,216,0.28)');
+    rects(paths[TILES.BASE_RED], 'rgba(232,70,79,0.22)');
+    rects(paths[TILES.MOSS], 'rgba(90,150,70,0.3)');
     rects(paths[TILES.ENERGY], `rgba(255,60,80,${0.18 + 0.1 * Math.sin(t * 4)})`);
-    rects(paths[TILES.DOOR_OPEN], null, 'rgba(255,210,80,0.25)', 4);
+    rects(paths[TILES.DOOR_OPEN], null, 'rgba(170,130,30,0.45)', 4);
     if (paths[TILES.CONVEYOR]) {
       const list = paths[TILES.CONVEYOR];
-      rects(list, 'rgba(255,255,255,0.04)');
+      rects(list, 'rgba(0,0,0,0.05)');
       ctx.beginPath();
       for (let i = 0; i < list.length; i += 2) {
         const idx = (list[i + 1] / TILE) * w + list[i] / TILE;
@@ -362,7 +369,7 @@ export class Renderer {
           ctx.moveTo(cx - Math.cos(a - 0.7) * 10, cy - Math.sin(a - 0.7) * 10); ctx.lineTo(cx, cy); ctx.lineTo(cx - Math.cos(a + 0.7) * 10, cy - Math.sin(a + 0.7) * 10);
         }
       }
-      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,210,80,0.35)'; ctx.stroke();
+      ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(160,120,20,0.5)'; ctx.stroke();
     }
     if (paths[TILES.TELEPORT]) {
       for (let i = 0; i < paths[TILES.TELEPORT].length; i += 2) {
@@ -370,27 +377,27 @@ export class Renderer {
         for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(x, y, 10 + k * 8, t * (2 + k) , t * (2 + k) + 4.2); ctx.lineWidth = 3; ctx.strokeStyle = `rgba(176,107,255,${0.8 - k * 0.2})`; ctx.stroke(); }
       }
     }
-    rects(paths[TILES.WALL], theme.wall, shade(theme.wall.startsWith('#') ? theme.wall : '#2b3242', 0.12));
+    rects(paths[TILES.WALL], theme.wall, shade(theme.wall, -0.22));
     if (paths[TILES.BREAK]) {
-      rects(paths[TILES.BREAK], '#4a3d33', '#7d6652');
+      rects(paths[TILES.BREAK], '#b8a690', '#8c7860');
       ctx.beginPath();
       const l = paths[TILES.BREAK];
       for (let i = 0; i < l.length; i += 2) { const x = l[i], y = l[i + 1]; ctx.moveTo(x + 14, y + 10); ctx.lineTo(x + 30, y + 30); ctx.lineTo(x + 24, y + 50); ctx.moveTo(x + 30, y + 30); ctx.lineTo(x + 50, y + 22); }
-      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(20,14,10,0.7)'; ctx.stroke();
+      ctx.lineWidth = 2; ctx.strokeStyle = 'rgba(70,50,30,0.6)'; ctx.stroke();
     }
-    if (paths[TILES.CRYSTAL]) rects(paths[TILES.CRYSTAL], `rgba(120,210,245,${0.55 + 0.1 * Math.sin(t * 2)})`, '#d8f6ff', 2);
+    if (paths[TILES.CRYSTAL]) rects(paths[TILES.CRYSTAL], `rgba(130,205,235,${0.8 + 0.1 * Math.sin(t * 2)})`, '#5aa6c8', 2);
     if (paths[TILES.DOOR]) {
-      rects(paths[TILES.DOOR], this.map.theme === 'void' ? '#3d2a66' : '#5a4a1e', this.map.theme === 'void' ? '#9b6bff' : '#ffd24d', 2);
+      rects(paths[TILES.DOOR], this.map.theme === 'void' ? '#a88fd6' : '#d8b84a', this.map.theme === 'void' ? '#6b4fa8' : '#9a7c1c', 2);
     }
     if (paths[TILES.VINE]) {
       const l = paths[TILES.VINE];
-      rects(l, '#24462a', '#3f7d3c');
+      rects(l, '#7fb070', '#4f8045');
       ctx.beginPath();
       for (let i = 0; i < l.length; i += 2) for (let k = 0; k < 3; k++) { ctx.moveTo(l[i] + 18 + k * 14, l[i + 1] + 16 + (k % 2) * 20); ctx.arc(l[i] + 14 + k * 14, l[i + 1] + 16 + (k % 2) * 20, 5, 0, Math.PI * 2); }
-      ctx.fillStyle = '#5fbf5a'; ctx.fill();
+      ctx.fillStyle = '#4e9a45'; ctx.fill();
     }
     if (paths[TILES.TEMP]) {
-      rects(paths[TILES.TEMP], 'rgba(200,205,220,0.75)', '#ffffff', 3);
+      rects(paths[TILES.TEMP], 'rgba(150,155,170,0.85)', '#6d7080', 3);
     }
   }
 
@@ -619,6 +626,6 @@ export class Renderer {
       }
     }
     const [mx, my] = toM(this.cam.x, this.cam.y);
-    c.beginPath(); c.arc(mx, my, 3.2, 0, Math.PI * 2); c.fillStyle = '#ffffff'; c.fill();
+    c.beginPath(); c.arc(mx, my, 3.4, 0, Math.PI * 2); c.fillStyle = '#1b1f27'; c.fill();
   }
 }

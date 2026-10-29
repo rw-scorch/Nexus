@@ -1,5 +1,5 @@
 const DEG = Math.PI / 180;
-const BARREL = '#9aa3b0', BARREL_EDGE = '#5f6773';
+const BARREL = '#999999', BARREL_EDGE = '#727272';
 
 export function shade(hex, f) {
   const n = parseInt(hex.slice(1), 16);

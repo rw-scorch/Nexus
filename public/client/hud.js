@@ -4,6 +4,7 @@ import { DOCTRINES } from '../shared/projectile-types.js';
 import { BOSSES } from '../shared/boss-registry.js';
 import { UPGRADES } from '../shared/entity-types.js';
 import { previewTank } from './draw.js';
+import { drawTree, hitTest } from './tree.js';
 import { EVO_KEYS } from './input.js';
 import { store } from './storage.js';
 
@@ -28,9 +29,9 @@ export class Hud {
   build() {
     this.root.innerHTML = `
       <div class="hud-tl">
-        <div class="hbox" id="h-lb"></div>
         <div class="hbox p hidden" id="h-evo"></div>
         <div class="hbox p hidden" id="h-doc"></div>
+        <div class="p" id="h-stats"></div>
       </div>
       <div class="hud-tc">
         <div id="h-offline" class="offline-banner hidden">Offline practice. Bots only, nothing here is online.</div>
@@ -43,14 +44,15 @@ export class Hud {
         <canvas id="minimap"></canvas>
         <div class="net" id="h-net"></div>
         <div class="hud-btns p">
+          <button class="btn" data-a="tree">Tree</button>
           <button class="btn" data-a="players">Players</button>
           <button class="btn hidden" data-a="team" id="h-teambtn">Team</button>
           <button class="btn hidden" data-a="sandbox" id="h-sbbtn">Sandbox</button>
           <button class="btn" data-a="pause">Menu</button>
         </div>
+        <div class="hbox" id="h-lb"></div>
         <div class="feed" id="h-feed"></div>
       </div>
-      <div class="hud-bl p" id="h-stats"></div>
       <div class="hud-bc">
         <div class="tankname" id="h-name"></div>
         <div class="statline" id="h-line"></div>
@@ -70,7 +72,7 @@ export class Hud {
       const b = e.target.closest('[data-a]');
       if (!b) return;
       const a = b.dataset.a;
-      if (a === 'players' || a === 'team' || a === 'sandbox' || a === 'pause' || a === 'doctrine') this.toggle(a);
+      if (a === 'players' || a === 'team' || a === 'sandbox' || a === 'pause' || a === 'doctrine' || a === 'tree') this.toggle(a);
       else this.actions.onAction(a, b.dataset);
     });
     const ab = this.el('t-ab');
@@ -204,7 +206,7 @@ export class Hud {
   renderLeaderboard() {
     const myTeam = this.meStats ? this.meStats.team : -1;
     const myTank = this.you ? this.you.id : 0;
-    const rows = [...this.players].sort((a, b) => b[4] - a[4]).slice(0, 10).map((p, i) => {
+    const rows = [...this.players].sort((a, b) => b[4] - a[4]).slice(0, innerHeight < 560 ? 5 : 10).map((p, i) => {
       const color = MODES[this.mode] && MODES[this.mode].teams ? TEAM_COLORS[p[2]] : (p[7] && p[7] === myTank ? '#38a3ff' : '#c7d0dd');
       return `<div class="lb-row ${p[7] && p[7] === myTank ? 'me' : ''}"><span class="muted">${i + 1}</span><span style="color:${color};overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(p[1])}</span><span>${p[4] >= 1000 ? (p[4] / 1000).toFixed(1) + 'k' : p[4]}</span></div>`;
     }).join('');
@@ -217,11 +219,11 @@ export class Hud {
     this.cache.stats = key;
     const box = this.el('h-stats');
     if (!y.pts && !this.statsPinned) { box.innerHTML = ''; return; }
-    box.innerHTML = `<div class="statline" style="font-family:var(--display)">${y.pts} upgrade point${y.pts === 1 ? '' : 's'} &middot; keys 1-8</div>` + STAT_NAMES.map((n, i) => `
+    box.innerHTML = `<div class="statline" style="font-family:var(--display)">${y.pts} upgrade point${y.pts === 1 ? '' : 's'} &middot; keys 1-8</div><div class="stat-grid">` + STAT_NAMES.map((n, i) => `
       <div class="stat-row" style="--c:${STAT_COLORS[i]}">
         <div><div>${i + 1}. ${n}</div><div class="pips">${Array.from({ length: STAT_MAX }, (_, k) => `<i class="${k < y.st[i] ? 'on' : ''}"></i>`).join('')}</div></div>
         <button data-a="stat" data-i="${i}" ${y.pts > 0 && y.st[i] < STAT_MAX ? '' : 'disabled'}>+</button>
-      </div>`).join('');
+      </div>`).join('') + '</div>';
   }
 
   renderEvo(y, me) {
@@ -337,6 +339,24 @@ export class Hud {
     if (!this.drawer) { if (box) box.remove(); return; }
     if (!box) { box = document.createElement('div'); box.className = 'drawer panel p'; this.root.appendChild(box); }
     const close = '<button class="btn small" data-a="close" style="float:right">Close</button>';
+    box.classList.toggle('wide', this.drawer === 'tree');
+    if (this.drawer === 'tree') {
+      const y = this.you || {};
+      const def = tankByIndex(y.def || 0);
+      const key = JSON.stringify([y.def, y.evo]);
+      if (this.cache.tree === key && box.dataset.k === 'tree') return;
+      this.cache.tree = key; box.dataset.k = 'tree';
+      box.innerHTML = `${close}<h2 class="title">Upgrade Tree</h2><p class="muted" style="margin:0 0 8px">${esc(def.doctrineName)} doctrine. White border: your tank. Gold border: tap to evolve now. Scroll sideways to see every branch.</p><div class="tree-scroll"><canvas id="h-tree"></canvas></div>`;
+      const cv = box.querySelector('#h-tree');
+      const hits = drawTree(cv, { doc: def.doctrine, current: y.def, available: y.evo || [] });
+      cv.onclick = ev => {
+        const h = hitTest(hits, cv, ev);
+        if (!h) return;
+        if ((y.evo || []).includes(h.idx)) { this.actions.onAction('evolve', { i: h.idx }); this.closeDrawer(); }
+        else this.toast(`${h.name}: ${TANKS[h.idx].role}, tier ${TANKS[h.idx].tier}`, 'info', 1800);
+      };
+      return;
+    }
     if (this.drawer === 'players') {
       const teams = MODES[this.mode] && MODES[this.mode].teams;
       box.innerHTML = `${close}<h2 class="title">Players</h2><table><tr><th>Name</th>${teams ? '<th>Team</th>' : ''}<th>Tank</th><th>K</th><th>D</th><th>Score</th></tr>${[...this.players].sort((a, b) => b[4] - a[4]).map(p => `<tr><td>${esc(p[1])}${p[9] ? '' : ' <span class="muted">(reconnecting)</span>'}</td>${teams ? `<td style="color:${TEAM_COLORS[p[2]]}">${this.teamName(p[2])}</td>` : ''}<td>${p[8] >= 0 ? esc(TANKS[p[8]].name) : '<span class="muted">dead</span>'}</td><td>${p[5]}</td><td>${p[6]}</td><td>${p[4]}</td></tr>`).join('')}</table>`;

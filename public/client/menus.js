@@ -4,6 +4,7 @@ import { FLAG_INFO, DOCTRINES, PROJECTILE_KINDS } from '../shared/projectile-typ
 import { BOSSES } from '../shared/boss-registry.js';
 import { ACHIEVEMENTS, MAP_THEMES } from '../shared/entity-types.js';
 import { previewTank, drawBoss } from './draw.js';
+import { drawTree, hitTest } from './tree.js';
 import { store, setSetting, save } from './storage.js';
 import { serverBase, checkHealth } from './net.js';
 import { setVolume } from './audio.js';
@@ -262,25 +263,21 @@ export class Menus {
   }
 
   screen_progression() {
-    const roots = TANK_FAMILIES.filter(f => f.root);
-    const id = (f, i) => TANKS_BY_ID.get(`${f.key}.${i}.std`);
-    const link = d => `<a href="#" data-tank="${d.index}" data-go2="collection" style="color:#7cc4ff">${esc(d.name)}</a>`;
+    const doc = this.treeDoc || 'std';
     return `${this.backBtn()}<h2 class="title">Tank Progression</h2>
-      <div class="panel tree">
-      <p>Every tank starts as <b>Basic</b>. Evolve at level 15 (tier 2), 30 (tier 3) and 45 (tier 4). Each choice keeps your current doctrine. Branches marked as children fork off their parent family at tier 3.</p>
-      <p><b>Doctrines</b> are a second axis: ${DOCTRINES.length} ammunition styles that change how every barrel behaves. Adopting one costs a relic core, dropped by elite enemies, alpha pentagons, secret caches and bosses. Combining ${TANK_FAMILIES.length + 1} families, 4 forms each and ${DOCTRINES.length} doctrines gives ${TANKS.length} distinct tanks.</p>
-      <ul class="muted">${DOCTRINES.map(d => `<li><b style="color:var(--text)">${d.name}</b>: ${esc(d.passive)}. ${esc(d.weakness)}.</li>`).join('')}</ul>
-      <p><b>Hidden paths:</b> the Relic family needs a boss victory, and the Experimental family needs 2 relic cores held.</p>
-      ${roots.map(f => {
-        const kids = TANK_FAMILIES.filter(k => k.parent === f.key);
-        return `<details open><summary><b>${esc(f.name)}</b> <span class="muted">${esc(f.role)}</span></summary>
-          <div>Tier 2: ${link(id(f, 0))}</div>
-          <div>Tier 3: ${link(id(f, 1))}, ${link(id(f, 2))}</div>
-          <div>Tier 4: ${link(id(f, 3))}</div>
-          ${kids.map(k => `<details><summary>${esc(k.name)} branch <span class="muted">${esc(k.role)}</span></summary><div>Tier 3: ${link(id(k, 0))}, ${link(id(k, 1))}</div><div>Tier 4: ${link(id(k, 2))}, ${link(id(k, 3))}</div></details>`).join('')}
-        </details>`;
-      }).join('')}
+      <div class="panel">
+      <p>Every tank starts as <b>Basic</b> and evolves at level 15, 30 and 45. Rows are tiers; columns below a tank are its later forms. Tap any tank to open it in the collection.</p>
+      <div class="chips" style="margin-bottom:10px">${DOCTRINES.map(d => `<button class="chip ${d.key === doc ? 'on' : ''}" data-doc="${d.key}">${d.name}</button>`).join('')}</div>
+      <div class="tree-scroll"><canvas id="p-tree"></canvas></div>
+      <p class="muted" style="font-size:13px">Doctrines are a second axis: ${DOCTRINES.length} ammunition styles that change how every barrel behaves. Adopting one costs a relic core. ${TANK_FAMILIES.length + 1} families x 4 forms x ${DOCTRINES.length} doctrines = ${TANKS.length} tanks. The Relic family needs a boss victory, Experimental needs 2 relic cores held.</p>
+      <ul class="muted" style="font-size:13px">${DOCTRINES.map(d => `<li><b style="color:var(--text)">${d.name}</b>: ${esc(d.passive)}. ${esc(d.weakness)}.</li>`).join('')}</ul>
       </div>`;
+  }
+
+  after_progression() {
+    const cv = this.root.querySelector('#p-tree');
+    const hits = drawTree(cv, { doc: this.treeDoc || 'std' });
+    cv.onclick = ev => { const h = hitTest(hits, cv, ev); if (h) { this.col.sel = h.idx; this.show('collection', { back: 'progression' }); } };
   }
 
   screen_bosses() {
@@ -381,7 +378,7 @@ export class Menus {
           <dt>Move</dt><dd>WASD or arrow keys</dd><dt>Aim</dt><dd>Mouse</dd><dt>Fire</dt><dd>Left mouse (drones follow the cursor)</dd>
           <dt>Repel drones</dt><dd>Right mouse</dd><dt>Ability</dt><dd>Space, Shift or Q</dd><dt>Auto-fire</dt><dd>E</dd>
           <dt>Upgrade stats</dt><dd>1 to 8</dd><dt>Evolve</dt><dd>Y U I O H J K L, or click</dd><dt>Doctrine</dt><dd>G</dd>
-          <dt>Players</dt><dd>Tab</dd><dt>Team upgrades</dt><dd>T (Nexus Siege)</dd><dt>Sandbox panel</dt><dd>B</dd><dt>Respawn</dt><dd>R</dd><dt>Menu</dt><dd>Esc</dd></dl></div>
+          <dt>Upgrade tree</dt><dd>N</dd><dt>Players</dt><dd>Tab</dd><dt>Team upgrades</dt><dd>T (Nexus Siege)</dd><dt>Sandbox panel</dt><dd>B</dd><dt>Respawn</dt><dd>R</dd><dt>Menu</dt><dd>Esc</dd></dl></div>
         <div class="panel"><h3 style="margin-top:0">Touch (phone and iPad)</h3><p>Left side of the screen: drag to move. Right side: drag to aim and fire. The round button shows your ability and its cooldown. Toggle auto-fire with the AUTO FIRE button. Landscape is recommended.</p></div>
         <div class="panel"><h3 style="margin-top:0">Modes</h3>${Object.values(MODES).map(m => `<p><b>${m.name}.</b> ${m.desc}</p>`).join('')}</div>
         <div class="panel"><h3 style="margin-top:0">Nexus Siege</h3><p>Each Nexus is protected by a regenerating shield while its two shield generators stand. Destroy the generators to stop regeneration and weaken the shield, then break the shield and the core. Team credits buy shared upgrades. Destroyed defenses rebuild over time or with credits.</p></div>
@@ -422,6 +419,8 @@ export class Menus {
     const go = e.target.closest('[data-go]');
     if (go && go.dataset.go === 'game') { e.preventDefault(); return this.app.closeOverlay(); }
     if (go) { e.preventDefault(); return this.show(go.dataset.go, go.dataset.go === 'settings' || go.dataset.go === 'help' ? { back: this.current === 'error' ? 'main' : (this.opts && this.opts.back) || 'main' } : {}); }
+    const dc = e.target.closest('[data-doc]');
+    if (dc && this.current === 'progression') { this.treeDoc = dc.dataset.doc; return this.show('progression'); }
     const md = e.target.closest('[data-mode]');
     if (md) { this.mode = md.dataset.mode; setSetting('lastMode', this.mode); return this.show('main'); }
     const tk = e.target.closest('[data-tank]');

@@ -1,6 +1,6 @@
 # Nexus: Infinite Warfare
 
-Browser multiplayer tank game. Authoritative server, 1,032 tanks across 33 families, 20 bosses, Nexus Siege, procedural Labyrinths in six themes, bots, touch controls.
+Browser multiplayer tank game. Authoritative server, 1,032 tanks across 33 families, 20 bosses, Nexus Siege, arras-style Maze maps, procedural Labyrinths in six themes, bots, touch controls.
 
 The game is two programs:
 

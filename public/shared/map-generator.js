@@ -188,7 +188,7 @@ function tryLabyrinth(seed, theme) {
     if (visited[c] !== 1) continue;
     const x = c % cw, y = (c / cw) | 0;
     const isDead = deg[c] === 1;
-    if (isDead && rng.chance(0.45) || rng.chance(0.06)) {
+    if (isDead && rng.chance(0.18) || rng.chance(0.025)) {
       const nb = [];
       if (x > 0 && visited[c - 1] === 1) nb.push(c - 1);
       if (x < cw - 1 && visited[c + 1] === 1) nb.push(c + 1);
@@ -199,7 +199,7 @@ function tryLabyrinth(seed, theme) {
   }
   const passages = [];
   for (const [a, b] of extra) passages.push({ t: openLink(map, cw, a, b), braid: true });
-  for (const [a, b] of links) if (rng.chance(0.15)) passages.push({ t: openLink(map, cw, a, b), braid: false });
+  for (const [a, b] of links) if (rng.chance(0.08)) passages.push({ t: openLink(map, cw, a, b), braid: false });
 
   const rooms = [...secrets];
   const spawnCorners = big
@@ -306,7 +306,7 @@ function tryLabyrinth(seed, theme) {
     } else if (th === 'void' && rng.chance(0.3 * density)) {
       map.tiles[a] = T.DOOR; map.tiles[b] = T.DOOR;
       map.doors.push({ tiles: [a, b], phase: rng.range(0, 8), period: rng.pick([3, 7, 9]), unstable: true });
-    } else if (th === 'overgrown' && p.braid && rng.chance(0.4 * density)) {
+    } else if (th === 'overgrown' && p.braid && rng.chance(0.95 * density)) {
       map.tiles[a] = T.VINE; map.tiles[b] = T.VINE;
     }
   }
@@ -439,6 +439,83 @@ function tryArena(seed, teams) {
   return map;
 }
 
+function tryMaze(seed, teams) {
+  const rng = makeRng(seed);
+  const cw = 22, ch = 22;
+  const w = cw * 3 + 1, h = ch * 3 + 1;
+  const map = { w, h, tiles: blank(w, h, T.WALL), theme: 'maze', seed, kind: 'maze', rooms: [], spawns: [], teleporters: [], doors: [], conveyors: new Map(), regions: [], mobSpots: [], features: [], teleIndex: new Map() };
+  const mid = { cx: 9, cy: 9, cw: 4, ch: 4 };
+  const reserved = [];
+  const visited = new Uint8Array(cw * ch);
+  const links = [];
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  const stack = [{ c: 0, d: -1 }];
+  visited[0] = 1;
+  while (stack.length) {
+    const top = stack[stack.length - 1];
+    const cx = top.c % cw, cy = (top.c / cw) | 0;
+    const opts = [];
+    for (let d = 0; d < 4; d++) {
+      const nx = cx + dirs[d][0], ny = cy + dirs[d][1];
+      if (nx < 0 || ny < 0 || nx >= cw || ny >= ch || visited[ny * cw + nx]) continue;
+      opts.push(d);
+    }
+    if (!opts.length) { stack.pop(); continue; }
+    let d = opts.includes(top.d) && rng.chance(0.72) ? top.d : rng.pick(opts);
+    const n = (cy + dirs[d][1]) * cw + cx + dirs[d][0];
+    visited[n] = 1;
+    links.push([top.c, n]);
+    stack.push({ c: n, d });
+  }
+  for (let c = 0; c < cw * ch; c++) rect(map, (c % cw) * 3 + 1, ((c / cw) | 0) * 3 + 1, 2, 2, T.FLOOR);
+  for (const [a, b] of links) openLink(map, cw, a, b);
+  const deg = new Uint8Array(cw * ch);
+  for (const [a, b] of links) { deg[a]++; deg[b]++; }
+  for (let c = 0; c < cw * ch; c++) {
+    if (deg[c] !== 1 || !rng.chance(0.08)) continue;
+    const x = c % cw, y = (c / cw) | 0;
+    const nb = [[x + 1, y], [x - 1, y], [x, y + 1], [x, y - 1]].filter(([a, b]) => a >= 0 && b >= 0 && a < cw && b < ch);
+    const [nx, ny] = rng.pick(nb);
+    openLink(map, cw, c, ny * cw + nx);
+  }
+  const open = (r, type, mandatory, fill = T.FLOOR) => {
+    const t = cellRoomToTiles(r);
+    rect(map, t.x, t.y, t.w, t.h, fill);
+    map.rooms.push({ ...t, type, mandatory });
+    return t;
+  };
+  const plaza = open(mid, 'boss', true);
+  for (const [px, py] of [[1, 1], [plaza.w - 2, 1], [1, plaza.h - 2], [plaza.w - 2, plaza.h - 2]]) map.tiles[(plaza.y + py) * w + plaza.x + px] = T.WALL;
+  map.features.push({ type: 'landmark', x: (plaza.x + plaza.w / 2) * TILE, y: (plaza.y + plaza.h / 2) * TILE });
+  for (let i = 0; i < 5; i++) {
+    const r = placeRoom(rng, cw, ch, [1, 2], [mid, ...reserved], 60);
+    if (r) { reserved.push(r); open(r, 'resource', true); }
+  }
+  if (teams) {
+    const a = open({ cx: 0, cy: 0, cw: 3, ch: 3 }, 'base_blue', true, T.BASE_BLUE);
+    const b = open({ cx: cw - 3, cy: ch - 3, cw: 3, ch: 3 }, 'base_red', true, T.BASE_RED);
+    for (let k = 0; k < 6; k++) {
+      map.spawns.push({ team: 0, x: (a.x + 1 + rng.range(0, a.w - 2)) * TILE, y: (a.y + 1 + rng.range(0, a.h - 2)) * TILE });
+      map.spawns.push({ team: 1, x: (b.x + 1 + rng.range(0, b.w - 2)) * TILE, y: (b.y + 1 + rng.range(0, b.h - 2)) * TILE });
+    }
+  } else {
+    for (let k = 0; k < 16; k++) {
+      const c = rng.int(0, cw * ch - 1);
+      const x = c % cw, y = (c / cw) | 0;
+      if (x >= mid.cx - 1 && x <= mid.cx + mid.cw && y >= mid.cy - 1 && y <= mid.cy + mid.ch) continue;
+      map.spawns.push({ x: (x * 3 + 2) * TILE, y: (y * 3 + 2) * TILE });
+    }
+  }
+  for (let y = 1; y < h - 1; y++) for (let x = 1; x < w - 1; x++) {
+    const i = y * w + x;
+    if (map.tiles[i] !== T.WALL) continue;
+    const fl = (map.tiles[i - 1] === T.FLOOR && map.tiles[i + 1] === T.FLOOR) || (map.tiles[i - w] === T.FLOOR && map.tiles[i + w] === T.FLOOR);
+    if (fl && rng.chance(0.03)) map.tiles[i] = T.BREAK;
+  }
+  border(map);
+  return map;
+}
+
 function retry(fn, seed, ...args) {
   let map;
   for (let k = 0; k < 10; k++) {
@@ -451,9 +528,11 @@ function retry(fn, seed, ...args) {
 
 export function generateNexusMap(seed) { return retry(tryNexusMap, seed); }
 export function generateArena(seed, teams = false) { return retry(tryArena, seed, teams); }
+export function generateMaze(seed, teams = false) { return retry(tryMaze, seed, teams); }
 
 export function generateMap(mode, seed, theme) {
   if (mode === 'nexus') return generateNexusMap(seed);
+  if (mode === 'maze' || mode === 'maze_team') return generateMaze(seed, mode === 'maze_team');
   if (mode === 'labyrinth' || mode === 'labyrinth_team') return generateLabyrinth(seed, THEMES.includes(theme) ? theme : 'classic');
   return generateArena(seed, mode === 'tdm');
 }

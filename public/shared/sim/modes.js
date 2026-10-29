@@ -92,11 +92,11 @@ export function createMode(world) {
       if (isLab) this.initLabyrinth();
       if (!isLab) for (let i = 0; i < shapeTarget * 0.8; i++) spawnShapeSomewhere();
       else for (let i = 0; i < shapeTarget * 0.8; i++) spawnShapeSomewhere();
-      if (mode === 'ffa' || mode === 'tdm') {
+      if (mode === 'ffa' || mode === 'tdm' || mode === 'maze' || mode === 'maze_team') {
         const c = { x: world.W / 2, y: world.H / 2 };
         world.addShape('alpha', c.x, c.y);
       }
-      if (map.kind === 'nexus' || map.kind === 'arena') {
+      if (map.kind === 'nexus' || map.kind === 'arena' || map.kind === 'maze') {
         const shrine = world.addStruct('shrine', world.W / 2, world.H / 2, TEAM.NEUTRAL, { hp: 6000, armor: 0.3 });
         shrine.static = true;
         state.shrines.push({ id: shrine.id, x: shrine.x, y: shrine.y, respawnAt: 0, chamber: null });
@@ -173,11 +173,11 @@ export function createMode(world) {
       if (world.global.darkness && world.global.darkness.until < now) world.global.darkness = null;
       for (const p of world.players.values()) p.bossRewardMul = Math.min(1, p.bossRewardMul + 0.004 * dt);
       if (world.counts.shape < shapeTarget * (world.global.surgeUntil > now ? 1.8 : 1)) for (let i = 0; i < 2; i++) spawnShapeSomewhere();
-      if ((mode === 'ffa' || mode === 'tdm') && now > state.alphaAt && !world.ents.some(e => e.type === 'shape' && e.kind === 'alpha' && !e.dead)) {
+      if ((mode === 'ffa' || mode === 'tdm' || mode === 'maze' || mode === 'maze_team') && now > state.alphaAt && !world.ents.some(e => e.type === 'shape' && e.kind === 'alpha' && !e.dead)) {
         state.alphaAt = now + 120;
         world.addShape('alpha', world.W / 2 + rng.range(-200, 200), world.H / 2 + rng.range(-200, 200));
       }
-      if ((mode === 'ffa' || mode === 'tdm' || mode === 'sandbox') && world.tick % 90 === 0) {
+      if ((mode === 'ffa' || mode === 'tdm' || mode === 'sandbox' || mode === 'maze' || mode === 'maze_team') && world.tick % 90 === 0) {
         const crashers = world.ents.filter(e => e.type === 'mob' && !e.dead && e.kind === 'crasher').length;
         for (let i = crashers; i < 10; i++) {
           const a = rng.range(0, Math.PI * 2), d = rng.range(0, 450);

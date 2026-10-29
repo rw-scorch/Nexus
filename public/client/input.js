@@ -39,6 +39,7 @@ export class Input {
       if (k === 'g') this.hooks.onToggle('doctrine');
       if (k === 'r') this.hooks.onRespawn();
       if (k === 'm') this.hooks.onToggle('minimap');
+      if (k === 'n') this.hooks.onToggle('tree');
     });
     addEventListener('keyup', e => {
       const k = e.key.toLowerCase();
