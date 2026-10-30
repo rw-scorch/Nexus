@@ -12,7 +12,7 @@ const r1 = v => Math.round(v);
 const ang = v => Math.round((v || 0) * 100);
 const pct = (a, b) => Math.max(0, Math.min(100, Math.round((a / (b || 1)) * 100)));
 
-export const CLIENT_TYPES = new Set(['j', 'i', 'u', 'e', 'd', 'p', 'lvl', 'sb', 'tu', 'don', 'ping', 'r']);
+export const CLIENT_TYPES = new Set(['j', 'i', 'u', 'e', 'p', 'lvl', 'sb', 'tu', 'don', 'ping', 'r']);
 
 export function sanitizeInput(m) {
   const num = (v, lo, hi, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
@@ -44,7 +44,7 @@ function encodeEnt(e, world, viewer) {
       if (s.overdriveUntil > now) f |= 32;
       if (s.dashUntil > now) f |= 64;
       if (now - e.lastHurt < 0.12) f |= 128;
-      return [ENT.TANK, e.id, r1(e.x), r1(e.y), ang(e.angle), r1(e.r), e.team, pct(e.hp, e.maxHp), e.defIdx, f, e.level, e.swapped ? 1 : 0, r1(e.vx), r1(e.vy)];
+      return [ENT.TANK, e.id, r1(e.x), r1(e.y), ang(e.angle), r1(e.r), e.team, pct(e.hp, e.maxHp), e.defIdx, f, e.level, e.swapped ? 1 : 0, r1(e.vx), r1(e.vy), e.turAng && e.def.turrets.length ? e.turAng.map(ang) : 0];
     }
     case 'bullet':
       return [ENT.BULLET, e.id, r1(e.x), r1(e.y), r1(e.r), e.team, PROJECTILE_KINDS[e.kind] ? PROJECTILE_KINDS[e.kind].code : 0, ang(e.angle !== undefined ? e.angle : Math.atan2(e.vy, e.vx)), e.fx.heal ? 1 : e.fx.explode ? 2 : e.fx.home ? 3 : e.fx.chain ? 4 : e.fx.bounce ? 5 : 0, e.shapeDrone ? 1 : 0];
@@ -138,7 +138,7 @@ export function snapshotFor(world, p, extras) {
   } else {
     msg.y = { dead: 1, respawn: Math.max(0, Math.round((p.respawnAt - now) * 10) / 10), killer: p.killerId };
   }
-  msg.me = { k: p.kills, d: p.deaths, as: p.assists, sc: p.score, co: p.cores, bk: p.bossKills, sec: p.secrets.size, team: p.team, doc: Math.max(0, Math.round(p.docCdUntil - now)) };
+  msg.me = { k: p.kills, d: p.deaths, as: p.assists, sc: p.score, co: p.cores, bk: p.bossKills, sec: p.secrets.size, team: p.team };
   if (extras) Object.assign(msg, extras);
   return msg;
 }

@@ -534,7 +534,7 @@ export function generateMap(mode, seed, theme) {
   if (mode === 'nexus') return generateNexusMap(seed);
   if (mode === 'maze' || mode === 'maze_team') return generateMaze(seed, mode === 'maze_team');
   if (mode === 'labyrinth' || mode === 'labyrinth_team') return generateLabyrinth(seed, THEMES.includes(theme) ? theme : 'classic');
-  return generateArena(seed, mode === 'tdm');
+  return generateArena(seed, mode === 'tdm' || mode === 'battle_team');
 }
 
 export function encodeTiles(tiles) {

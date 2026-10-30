@@ -1,5 +1,5 @@
 import { TILE, TILES, VIEW_RADIUS, TEAM, TEAM_COLORS, MODES } from '../shared/constants.js';
-import { tankByIndex } from '../shared/tank-registry.js';
+import { tankByIndex, TANKS } from '../shared/tank-registry.js';
 import { SHAPES, SHAPE_KEYS, MOBS, MOB_KEYS, STRUCT_BY_CODE, HAZ, MAP_THEMES } from '../shared/entity-types.js';
 import { BOSSES } from '../shared/boss-registry.js';
 import { decodeTiles } from '../shared/map-generator.js';
@@ -208,11 +208,12 @@ export class Renderer {
     this.time += dt;
     const now = performance.now() / 1000;
     const W = this.canvas.width, H = this.canvas.height;
-    if (!this.map || !this.snaps.length) { ctx.fillStyle = '#090c12'; ctx.fillRect(0, 0, W, H); return null; }
+    if (!this.map || !this.snaps.length) { ctx.fillStyle = '#dcdcdc'; ctx.fillRect(0, 0, W, H); return null; }
     const latest = this.snaps[this.snaps.length - 1];
     const { a, b, alpha } = this.frameEntities(now);
     const lerp = (p, q, t) => p + (q - p) * t;
     const lerpA = (p, q, t) => { let d = q - p; while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return p + d * t; };
+    this.serverT = lerp(a.tm, b.tm, Math.min(1, alpha));
     const out = [];
     for (const [id, eb] of b.ents) {
       const ea = a.ents.get(id);
@@ -221,6 +222,7 @@ export class Renderer {
         e[2] = lerp(ea[2], eb[2], alpha); e[3] = lerp(ea[3], eb[3], alpha);
         if (eb[0] === 0 || eb[0] === 2 || eb[0] === 3 || eb[0] === 4 || eb[0] === 6) e[4] = lerpA(ea[4] / 100, eb[4] / 100, alpha) * 100;
         if (eb[0] === 1) e[7] = lerpA(ea[7] / 100, eb[7] / 100, alpha) * 100;
+        if (eb[0] === 0 && Array.isArray(ea[14]) && Array.isArray(eb[14]) && ea[14].length === eb[14].length) e[14] = eb[14].map((v, i) => lerpA(ea[14][i] / 100, v / 100, alpha) * 100);
       }
       out.push(e);
     }
@@ -308,6 +310,54 @@ export class Renderer {
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     }
     return { cx, cy, scale: scale / this.dpr, me, ents: out };
+  }
+
+  drawBackdrop(dt) {
+    const ctx = this.ctx;
+    const W = this.canvas.width, H = this.canvas.height, d = this.dpr || 1;
+    if (!this.bd) {
+      const rnd = (a, b) => a + Math.random() * (b - a);
+      const shapes = [];
+      for (let i = 0; i < 46; i++) shapes.push({ x: rnd(0, 1), y: rnd(0, 1), r: [11, 14, 22][i % 3], sides: [4, 3, 5][i % 3], a: rnd(0, 6.28), va: rnd(-0.4, 0.4), vx: rnd(-6, 6), vy: rnd(-6, 6) });
+      const pool = TANKS.filter(t => t.level >= 30);
+      const tanks = [];
+      const cols = ['#00b2e1', '#f14e54', '#00c864', '#b57cf0'];
+      for (let i = 0; i < 7; i++) tanks.push({ def: pool[Math.floor(Math.random() * pool.length)], x: rnd(0.05, 0.95), y: rnd(0.05, 0.95), a: rnd(0, 6.28), heading: rnd(0, 6.28), color: cols[i % cols.length], swapAt: rnd(6, 14) });
+      this.bd = { t: 0, shapes, tanks };
+    }
+    const bd = this.bd;
+    bd.t += dt;
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.fillStyle = '#cdcdcd';
+    ctx.fillRect(0, 0, W, H);
+    const gs = 30 * d, off = (bd.t * 8 * d) % gs;
+    ctx.strokeStyle = 'rgba(0,0,0,0.075)';
+    ctx.lineWidth = 1 * d;
+    ctx.beginPath();
+    for (let x = -off; x < W; x += gs) { ctx.moveTo(x, 0); ctx.lineTo(x, H); }
+    for (let y = -off; y < H; y += gs) { ctx.moveTo(0, y); ctx.lineTo(W, y); }
+    ctx.stroke();
+    const SC = { 4: ['#ffe869', '#bfae4e'], 3: ['#fc7677', '#bd585a'], 5: ['#768dfc', '#5869bd'] };
+    for (const sh of bd.shapes) {
+      sh.x = (sh.x + sh.vx * dt / (W / d) + 1) % 1; sh.y = (sh.y + sh.vy * dt / (H / d) + 1) % 1; sh.a += sh.va * dt;
+      ctx.save();
+      ctx.translate(sh.x * W, sh.y * H);
+      poly(ctx, 0, 0, sh.r * d * 1.4, sh.sides, sh.a);
+      ctx.fillStyle = SC[sh.sides][0]; ctx.fill();
+      ctx.lineWidth = 3 * d; ctx.lineJoin = 'round'; ctx.strokeStyle = SC[sh.sides][1]; ctx.stroke();
+      ctx.restore();
+    }
+    for (const tk of bd.tanks) {
+      tk.heading += Math.sin(bd.t * 0.7 + tk.x * 10) * 0.6 * dt;
+      tk.x = (tk.x + Math.cos(tk.heading) * 24 * dt / (W / d) + 1) % 1;
+      tk.y = (tk.y + Math.sin(tk.heading) * 24 * dt / (H / d) + 1) % 1;
+      tk.a += Math.sin(bd.t * 0.9 + tk.y * 7) * 0.8 * dt;
+      tk.swapAt -= dt;
+      if (tk.swapAt <= 0) { const pool = TANKS.filter(t => t.level >= 30); tk.def = pool[Math.floor(Math.random() * pool.length)]; tk.swapAt = 8 + Math.random() * 8; }
+      drawTank(ctx, tk.def, { x: tk.x * W, y: tk.y * H, angle: tk.a, r: 20 * d, color: tk.color, time: bd.t, idleSpin: true });
+    }
+    ctx.fillStyle = 'rgba(228,230,234,0.18)';
+    ctx.fillRect(0, 0, W, H);
   }
 
   markExplored(cx, cy, R) {
@@ -456,27 +506,12 @@ export class Renderer {
     if (flags & 1) alpha = isMe || team === this.me.team ? 0.35 : 0.2;
     if (flags & 4) alpha *= 0.55 + 0.45 * Math.abs(Math.sin(this.time * 8));
     if (flags & 16) color = '#9fd8ff';
-    const autoAngles = def.guns.some(g => g.auto) ? this.autoAngles(e, byType) : null;
+    const turretAngles = Array.isArray(e[14]) ? e[14].map(v => v / 100) : null;
     if (flags & 32) { ctx.beginPath(); ctx.arc(x, y, r * 1.5, 0, Math.PI * 2); ctx.fillStyle = `rgba(255,80,60,${0.15 + 0.1 * Math.sin(this.time * 12)})`; ctx.fill(); }
     if (flags & 64 && !store.settings.reducedEffects) this.addParticle({ k: 'dot', x, y, vx: 0, vy: 0, life: 0.2, size: r * 0.7, color: 'rgba(255,255,255,0.15)' });
-    drawTank(ctx, def, { x, y, angle: ang / 100, r, color, time: this.time, alpha, swapped: !!swapped, flash: flags & 128, autoAngles });
+    drawTank(ctx, def, { x, y, angle: ang / 100, r, color, time: this.serverT || this.time, alpha, swapped: !!swapped, flash: flags & 128, turretAngles });
     if (flags & 2) { ctx.beginPath(); ctx.arc(x, y, r * 1.55, 0, Math.PI * 2); ctx.fillStyle = 'rgba(120,200,255,0.12)'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(160,220,255,0.7)'; ctx.stroke(); }
     if (flags & 8) { star(ctx, x, y - r - 30, 10, 5, 0.45, -Math.PI / 2); ctx.fillStyle = '#ffd84d'; ctx.fill(); }
-  }
-
-  autoAngles(e, byType) {
-    const def = tankByIndex(e[8]);
-    const res = [];
-    let best = null, bd = 700 * 700;
-    for (const list of [byType[0], byType[3], byType[4]]) for (const o of list) {
-      if (o[1] === e[1]) continue;
-      const team = o[0] === 4 ? TEAM.BOSS : o[6];
-      if (team === e[6]) continue;
-      const d = (o[2] - e[2]) ** 2 + (o[3] - e[3]) ** 2;
-      if (d < bd) { bd = d; best = o; }
-    }
-    def.guns.forEach((g, i) => { if (g.auto) res[i] = best ? Math.atan2(best[3] - e[3], best[2] - e[2]) : e[4] / 100 + this.time * 0.6; });
-    return res;
   }
 
   tankLabels(ctx, e, hud) {
@@ -484,7 +519,7 @@ export class Renderer {
     if ((flags & 1) && id !== this.me.id && team !== this.me.team) return;
     const name = hud && hud.names ? hud.names.get(id) : null;
     if (id !== this.me.id && name) {
-      ctx.font = '600 14px "Chakra Petch", sans-serif';
+      ctx.font = '700 14px Ubuntu, sans-serif';
       ctx.textAlign = 'center';
       ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(0,0,0,0.75)';
       const label = `${name}  ${level}`;

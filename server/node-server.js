@@ -56,6 +56,17 @@ export function createServer({ port = PORT, host = HOST, quiet = false } = {}) {
       res.writeHead(200, { 'Content-Type': 'application/json' });
       return res.end(JSON.stringify(health()));
     }
+    if (req.url.startsWith('/rooms')) {
+      const u = new URL(req.url, 'http://x');
+      const out = {};
+      for (const code of (u.searchParams.get('codes') || '').split(',').filter(validRoomCode).slice(0, 12)) {
+        const r = rooms.get(code);
+        out[code] = r ? r.status().players : 0;
+      }
+      cors(res, origin);
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      return res.end(JSON.stringify(out));
+    }
     if (req.method === 'OPTIONS') { cors(res, origin); res.writeHead(204); return res.end(); }
     serveStatic(req, res);
   });

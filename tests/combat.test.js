@@ -87,7 +87,7 @@ test('owners never damage themselves and friendly fire is off by default', () =>
   const ta = w.tankOf(a), tb = w.tankOf(b);
   const s = openSpot(w);
   place(w, ta, s.x, s.y); place(w, tb, s.x + 200, s.y);
-  w.setTankDef(ta, tankByName('Volatile Basic'));
+  w.setTankDef(ta, tankByName('Howitzer'));
   a.input = { mx: 0, my: 0, ax: 200, ay: 0, fire: true, alt: false, ability: false, seq: 1 };
   const hpA = ta.hp, hpB = tb.hp;
   steps(w, 60, () => { tb.x = ta.x + 200; tb.y = ta.y; });

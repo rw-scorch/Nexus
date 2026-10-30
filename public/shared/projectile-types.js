@@ -22,27 +22,11 @@ export const FLAG_INFO = {
   disrupt: 'Drains shields four times faster',
   intercept: 'Hunts enemy projectiles',
   pull: 'Drags struck enemies toward the impact',
-  reverse: 'Returns toward the firer halfway through its life'
+  reverse: 'Returns toward the firer halfway through its life',
+  missile: 'Missile that sheds small rounds as it flies',
+  wave: 'Travels in a wave pattern',
+  orbit: 'Satellite that circles its owner',
+  block: 'Large, durable trap block',
+  armed: 'Carries a small auto gun'
 };
 
-export const DOCTRINES = [
-  { key: 'std', name: 'Standard', prefix: '', mods: {}, flags: {}, passive: 'Balanced ammunition', weakness: 'No special effect' },
-  { key: 'prc', name: 'Piercing', prefix: 'Piercing', mods: { dm: 0.78, pn: 1.6 }, flags: { pierce: 3 }, passive: 'Rounds pass through lines of enemies', weakness: 'Lower damage per hit' },
-  { key: 'vol', name: 'Volatile', prefix: 'Volatile', mods: { dm: 0.62, r: 1.18 }, flags: { explode: 1 }, passive: 'Rounds explode in an area', weakness: 'Slower reload, weak direct hits' },
-  { key: 'skr', name: 'Seeker', prefix: 'Seeker', mods: { dm: 0.86, sp: 0.85 }, flags: { home: 1 }, passive: 'Rounds track nearby enemies', weakness: 'Slower projectiles are easier to block' },
-  { key: 'ric', name: 'Ricochet', prefix: 'Ricochet', mods: { dm: 0.9, lf: 1.45 }, flags: { bounce: 3 }, passive: 'Rounds bounce off walls', weakness: 'Strays can be wasted in open arenas' },
-  { key: 'cls', name: 'Cluster', prefix: 'Cluster', mods: { dm: 0.66, r: 1.1 }, flags: { split: 4 }, passive: 'Rounds burst into fragments', weakness: 'Fragments do little against armor' },
-  { key: 'arc', name: 'Arc', prefix: 'Arc', mods: { dm: 0.8, r: 1.08 }, flags: { chain: 1 }, passive: 'Hits arc to a second target', weakness: 'Chain needs enemies grouped together' },
-  { key: 'mnd', name: 'Mender', prefix: 'Mender', mods: { dm: 0.68 }, flags: { heal: 1.1 }, passive: 'Rounds heal allies they touch', weakness: 'Much lower damage' }
-];
-
-export const BODY_DOCTRINES = {
-  std: { name: 'Standard', body: {}, passive: 'Plain ram plating', weakness: 'No special effect' },
-  prc: { name: 'Plated', body: { armor: 0.25, speed: 0.9 }, passive: 'Takes 25% less damage', weakness: '10% slower' },
-  vol: { name: 'Volatile', body: { blast: 1 }, passive: 'Contact triggers an explosion once a second', weakness: 'Lower base body damage' },
-  skr: { name: 'Magnetic', body: { magnet: 1 }, passive: 'Pulls nearby enemies inward', weakness: 'Also pulls you into crowds' },
-  ric: { name: 'Bouncer', body: { knock: 2.5 }, passive: 'Massive knockback on impact', weakness: 'Hard to stay in contact' },
-  cls: { name: 'Shrapnel', body: { shards: 1 }, passive: 'Sheds shards when struck', weakness: 'Lower body damage' },
-  arc: { name: 'Static', body: { staticArc: 1 }, passive: 'Contact damage arcs to a second enemy', weakness: 'Lower body damage' },
-  mnd: { name: 'Leech', body: { leech: 0.35 }, passive: 'Body damage heals you', weakness: 'Less maximum health' }
-};

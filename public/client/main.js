@@ -1,5 +1,5 @@
 import { PROTOCOL_VERSION, MODES } from '../shared/constants.js';
-import { TANKS, tankByIndex } from '../shared/tank-registry.js';
+import { TANKS, TANKS_BY_ID, tankByIndex } from '../shared/tank-registry.js';
 import { BOSSES } from '../shared/boss-registry.js';
 import { Renderer } from './renderer.js';
 import { Hud } from './hud.js';
@@ -84,7 +84,7 @@ class App {
     if (this.net) this.net.close();
     this.welcomed = false;
     const handlers = {
-      onOpen: () => this.send({ t: 'j', protocol: PROTOCOL_VERSION, name: s.name, token: this.tokenFor(s.code), mode: s.mode, settings: s.settings }),
+      onOpen: () => this.send({ t: 'j', protocol: PROTOCOL_VERSION, name: s.name, token: this.tokenFor(s.code), mode: s.mode, settings: s.settings, tank: this.battleTankIndex() }),
       onMessage: m => this.onMessage(m),
       onClose: (code, reason, wasOpen) => this.onClose(code, reason, wasOpen)
     };
@@ -196,7 +196,7 @@ class App {
     switch (e.k) {
       case 'kill': {
         const killerTeam = e.at, victimTeam = e.bt;
-        const col = t => (MODES[this.session.mode] && MODES[this.session.mode].teams) ? (t === 0 ? '#38a3ff' : '#ff4d61') : '#e6edf7';
+        const col = t => (MODES[this.session.mode] && MODES[this.session.mode].teams) ? (t === 0 ? '#2f8fc4' : '#d8404a') : '#1d2433';
         this.hud.addFeed(`<span style="color:${col(killerTeam)}">${esc(e.a)}</span> <span class="muted">destroyed</span> <span style="color:${col(victimTeam)}">${esc(e.b)}</span>`);
         break;
       }
@@ -227,7 +227,9 @@ class App {
     if (this.state !== 'playing') return;
     if (name === 'minimap') { const mm = document.getElementById('minimap'); mm.classList.toggle('hidden'); return; }
     if (name === 'team' && this.session.mode !== 'nexus') return;
+    if (name === 'sandbox' && MODES[this.session.mode] && MODES[this.session.mode].battle) name = 'pick';
     if (name === 'sandbox' && this.session.mode !== 'sandbox') return;
+    if (name === 'pick' && !(MODES[this.session.mode] && (MODES[this.session.mode].battle || this.session.mode === 'sandbox'))) return;
     this.hud.toggle(name);
   }
 
@@ -235,7 +237,14 @@ class App {
     switch (a) {
       case 'stat': this.send({ t: 'u', s: Number(d.i) }); break;
       case 'evolve': this.evolve(Number(d.i)); break;
-      case 'doc': this.send({ t: 'd', k: d.k }); break;
+      case 'pick': {
+        const idx = Number(d.i);
+        if (!TANKS[idx]) break;
+        store.battleTank = TANKS[idx].id; save();
+        this.send({ t: 'p', idx });
+        this.hud.toast(`${TANKS[idx].name} selected`, 'good', 1500);
+        break;
+      }
       case 'tu': this.send({ t: 'tu', k: d.k }); break;
       case 'donate': this.send({ t: 'don' }); break;
       case 'respawn': this.send({ t: 'r' }); break;
@@ -248,6 +257,11 @@ class App {
       case 'settings': this.hud.closeDrawer(); this.menus.show('settings', { back: 'game', clear: true }); break;
       case 'help': this.hud.closeDrawer(); this.menus.show('help', { back: 'game', clear: true }); break;
     }
+  }
+
+  battleTankIndex() {
+    const d = store.battleTank && TANKS_BY_ID.get(store.battleTank);
+    return d ? d.index : undefined;
   }
 
   sandboxPick(idx) { this.send({ t: 'p', idx }); this.closeOverlay(); }
@@ -305,8 +319,7 @@ class App {
     } else if (this.state !== 'playing') {
       const ctx = this.renderer.ctx;
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = '#090c12';
-      ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
+      this.renderer.drawBackdrop(dt);
     }
     requestAnimationFrame(tt => this.loop(tt));
   }

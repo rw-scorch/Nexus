@@ -1,6 +1,6 @@
 # Nexus: Infinite Warfare
 
-Browser multiplayer tank game. Authoritative server, 1,032 tanks across 33 families, 20 bosses, Nexus Siege, arras-style Maze maps, procedural Labyrinths in six themes, bots, touch controls.
+Browser multiplayer tank game. Authoritative server, 265 tanks that follow the arras.io class tree (131 classic, 105 Arms Race, 29 Nexus originals), 20 bosses, Nexus Siege, Battle mode with no leveling, arras-style Maze maps, procedural Labyrinths in six themes, bots, touch controls.
 
 The game is two programs:
 
@@ -74,12 +74,25 @@ Netlify cannot run the game server itself. Without a server address the menu sho
 ```powershell
 npm install
 npm start          # Node server + client on http://localhost:8080
-npm test           # 54 automated tests (Node 22+)
+npm test           # 53 automated tests (Node 22+)
 npm run validate   # registry, boss and map validation summary
 npm run cf:dev     # run the Cloudflare Worker locally on http://localhost:8787
 ```
 
 Open two browser windows on the same room code to play against yourself.
+
+### Regenerating the arras tank data
+
+Only needed if you want to pull in upstream changes:
+
+```bash
+git clone https://github.com/open-source-arras/open-source-arras ../open-source-arras
+node tools/arras-import.js ../open-source-arras/server/lib/definitions tools/arras-raw.json
+node tools/arras-convert.js tools/arras-raw.json public/shared/data/arras-tanks.js
+npm test
+```
+
+The importer parses the upstream files with `acorn` and reads them as data. It never runs upstream code.
 
 ## Troubleshooting
 
@@ -103,8 +116,9 @@ Open two browser windows on the same room code to play against yourself.
 
 ### Content
 
-- **Tanks** (`shared/tank-registry.js`): 33 families x 4 forms x 8 doctrines (+ Basic). Forms are barrel layouts built from reusable gun components. Doctrines change every barrel's projectile behaviour (piercing, explosive, homing, ricochet, cluster, chain, healing). Gunless rammers get body doctrines instead. A balance framework gives each tier a damage budget, charges mobility for heavy layouts, and the tests check that no form strictly dominates a sibling.
-- **Progression**: levels 15, 30, 45 unlock tiers; 8 stat upgrades; doctrines cost relic cores (from elites, alpha pentagons, caches, bosses); the Relic family needs a boss victory; Experimental needs 2 cores held. Sandbox mode can select any tank.
+- **Tanks** (`shared/tank-registry.js`): the arras.io class tree. Basic upgrades at level 15 to Twin, Sniper, Machine Gun, Flank Guard, Director, Pounder, Trapper or Desmos, then on through levels 30, 45 and 60. Barrel positions, sizes, trapezoid shapes, auto turrets and weapon numbers come from `shared/data/arras-tanks.js`, which is generated from Open Source Arras (MIT, see `THIRD_PARTY_NOTICES.md`). Arms Race tanks sit at level 60. Nexus originals (`shared/nexus-tanks.js`, orange in the tree) add energy beams, chain lightning, gravity pulls and homing missiles.
+- **Battle and Team Battle**: no leveling. You spawn at level 60 with 42 stat points and any tank you pick in the menu (or with the Tanks button / B key in game).
+- **Progression**: levels 15, 30, 45 and 60 unlock the next upgrades; 8 stat upgrades; relic cores fund Nexus Siege team upgrades. Sandbox mode can select any tank.
 - **Bosses** (`shared/boss-registry.js`): 20 data-defined bosses composed from 26 attack primitives, each with phases, telegraphed attacks and, for seven of them, destructible or moving components.
 - **Maps** (`shared/map-generator.js`): seeded maze plus rooms, braided for alternate routes, sealed secret rooms behind breakable walls, boss chambers with shrines, validated by flood fill before use.
 

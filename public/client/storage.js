@@ -10,7 +10,8 @@ const DEFAULTS = {
   stats: { games: 0, kills: 0, deaths: 0, assists: 0, bosses: 0, secrets: 0, bestScore: 0, seconds: 0, elites: 0, heal: 0, bossTypes: {}, tanks: {} },
   ach: {},
   counters: {},
-  seen: {}
+  seen: {},
+  battleTank: ''
 };
 
 function load() {
@@ -21,7 +22,7 @@ function load() {
     return {
       settings: { ...DEFAULTS.settings, ...(d.settings || {}) },
       stats: { ...DEFAULTS.stats, ...(d.stats || {}) },
-      ach: d.ach || {}, counters: d.counters || {}, seen: d.seen || {}
+      ach: d.ach || {}, counters: d.counters || {}, seen: d.seen || {}, battleTank: d.battleTank || ''
     };
   } catch (e) {
     return structuredClone(DEFAULTS);

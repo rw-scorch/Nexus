@@ -1,34 +1,54 @@
-import { MODES, THEMES, STAT_NAMES } from '../shared/constants.js';
+import { MODES, THEMES, STAT_NAMES, MAX_LEVEL } from '../shared/constants.js';
 import { TANKS, TANK_FAMILIES, ABILITIES, TANKS_BY_ID, validateRegistry } from '../shared/tank-registry.js';
-import { FLAG_INFO, DOCTRINES, PROJECTILE_KINDS } from '../shared/projectile-types.js';
+import { FLAG_INFO, PROJECTILE_KINDS } from '../shared/projectile-types.js';
 import { BOSSES } from '../shared/boss-registry.js';
 import { ACHIEVEMENTS, MAP_THEMES } from '../shared/entity-types.js';
 import { previewTank, drawBoss } from './draw.js';
-import { drawTree, hitTest } from './tree.js';
+import { drawTree, hitTest, scrollToNode, TIER_COLORS } from './tree.js';
 import { store, setSetting, save } from './storage.js';
-import { serverBase, checkHealth } from './net.js';
+import { serverBase, checkHealth, roomCounts } from './net.js';
 import { setVolume } from './audio.js';
 
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 let VALID = null;
 const validation = () => VALID || (VALID = validateRegistry());
-const RARITIES = ['common', 'uncommon', 'rare', 'epic', 'legendary', 'mythic'];
 const ROLES = [...new Set(TANKS.map(t => t.role))].sort();
-
-function availability(d) {
-  if (d.req.bossKill) return 'boss';
-  if (d.family === 'experimental') return 'cores';
-  if (d.doctrine !== 'std') return 'cores';
-  return 'tree';
-}
-const AVAIL_LABEL = { tree: 'Evolution tree', cores: 'Needs relic cores', boss: 'Needs a boss victory' };
+const TIER_IX = { 1: 0, 15: 1, 30: 2, 45: 3, 60: 4 };
+const tileColor = d => d.src === 'nexus' ? TIER_COLORS[5] : TIER_COLORS[TIER_IX[d.level] ?? 4];
+const SRC_LABEL = { arras: 'Arras class tree', ar: 'Arms Race', nexus: 'Nexus original' };
+const MODE_STYLE = {
+  ffa: ['#f14e54', 'FFA'], tdm: ['#00b2e1', 'Teams'], nexus: ['#b57cf0', 'Objective'], maze: ['#e0b400', 'FFA'], maze_team: ['#e0b400', 'Teams'],
+  labyrinth: ['#00c864', 'Explore'], labyrinth_team: ['#00c864', 'Teams'], battle: ['#fc9a4a', 'No leveling'], battle_team: ['#fc9a4a', 'Teams'], sandbox: ['#8b93a3', 'Creative']
+};
+const MODE_FILTERS = [['all', 'All'], ['ffa', 'Free for all'], ['team', 'Teams'], ['battle', 'No leveling']];
+const TIPS = [
+  'Upgrade at levels 15, 30, 45 and 60. Arms Race tanks unlock at 60.',
+  'Drones follow your cursor while you hold fire. Right click pushes them away.',
+  'In Battle and Team Battle you start at level 60. Spend your 42 points first.',
+  'Stalker, Landmine and Phantom turn invisible when they stand still.',
+  'Auto turrets aim by themselves. Auto-3 and its children spin while they shoot.',
+  'Press N in game to open the class tree. Green outlines are upgrades you can take now.',
+  'Traps stop where they land. Builders and Tri-Trappers can wall off corridors in Maze.',
+  'Nexus originals use energy beams: they hit instantly and some bounce off walls.'
+];
+const CHANGES = [
+  'Tanks now follow the real arras.io class tree: 131 classic tanks, every one with its own barrel layout.',
+  '105 Arms Race tanks added on top, unlocked at level 60.',
+  '29 Nexus originals built on energy beams, chain lightning and gravity.',
+  'New Battle and Team Battle modes: no leveling, pick any tank and fight.',
+  'New light look for every menu and the in-game interface.',
+  'Level cap raised to 60.'
+];
 
 export class Menus {
   constructor(root, app) {
     this.root = root;
     this.app = app;
-    this.mode = store.settings.lastMode || 'ffa';
-    this.col = { q: '', family: '', role: '', rarity: '', tier: '', played: '', ability: '', avail: '', page: 0, sel: 0 };
+    this.mode = MODES[store.settings.lastMode] ? store.settings.lastMode : 'ffa';
+    this.modeFilter = 'all';
+    this.col = { q: '', family: '', role: '', level: '', src: '', played: '', page: 0, sel: 0 };
+    this.treeRoot = 'basic';
+    this.counts = {};
     this.anim = 0;
     this.root.addEventListener('click', e => this.onClick(e));
     this.root.addEventListener('input', e => this.onInput(e));
@@ -42,70 +62,109 @@ export class Menus {
     this.current = name;
     this.opts = opts;
     const fn = this['screen_' + name];
-    this.root.innerHTML = `<div class="screen${opts.clear ? ' clear' : ''}"><div class="wrap">${fn.call(this, opts)}</div></div>`;
+    const cls = name === 'main' ? ' main-screen' : opts.clear ? ' clear' : '';
+    this.root.innerHTML = `<div class="screen${cls}"><div class="wrap">${fn.call(this, opts)}</div></div>`;
     const after = this['after_' + name];
     if (after) after.call(this, opts);
   }
 
-  backBtn(to = 'main') { return `<button class="btn small back" data-go="${to}">Back</button>`; }
+  backBtn(to = 'main') { return `<button class="btn small back" data-go="${to}">&larr; Back</button>`; }
+
+  battleTank() { return (store.battleTank && TANKS_BY_ID.get(store.battleTank)) || null; }
+
+  modeRows() {
+    const f = this.modeFilter;
+    return Object.entries(MODES).filter(([k, m]) => f === 'all' || (f === 'team' ? m.teams : f === 'battle' ? m.battle : !m.teams)).map(([k, m]) => {
+      const [c, tag] = MODE_STYLE[k] || ['#8b93a3', ''];
+      const n = this.counts[`pub-${k}-1`];
+      const cnt = n === undefined ? '' : `${n} playing`;
+      return `<button class="srv ${k === this.mode ? 'on' : ''}" style="--c:${c}" data-mode="${k}"><i></i><span><b>${esc(m.name)}<span class="tag">${tag}</span></b><small>${esc(m.desc)}</small></span><span class="cnt">${cnt || '&nbsp;'}</span></button>`;
+    }).join('');
+  }
 
   screen_main() {
-    const modes = Object.entries(MODES).map(([k, m]) => `<button class="mode-card ${k === this.mode ? 'on' : ''}" data-mode="${k}"><b>${m.name}</b><small>${m.desc}</small></button>`).join('');
+    const bt = this.battleTank();
+    const isBattle = MODES[this.mode] && MODES[this.mode].battle;
+    const explore = `
+      <button class="btn blue" data-go="progression">Class Tree</button>
+      <button class="btn purple" data-go="collection">All Tanks</button>
+      <button class="btn orange" data-go="bosses">Bestiary</button>
+      <button class="btn yellow" data-go="achievements">Achievements</button>
+      <button class="btn" data-go="stats">Statistics</button>
+      <button class="btn" data-go="help">Help</button>`;
     return `
-      <div class="menu-grid">
-        <div>
-          <div class="logo">NEXUS<br><span>INFINITE</span> <em>WARFARE</em></div>
-          <p class="tag">Multiplayer tank combat. ${TANKS.length.toLocaleString()} tanks, ${BOSSES.length} bosses, procedural labyrinths.</p>
-          <div class="panel">
-            <div class="field"><label for="m-name">Callsign</label><input id="m-name" maxlength="16" placeholder="Your name" value="${esc(store.settings.name)}"></div>
-            <button class="btn primary block" data-act="quick" style="min-height:52px;font-size:16px">Play ${esc(MODES[this.mode].name)}</button>
-            <div style="height:10px"></div>
-            <div class="row"><button class="btn" data-go="create" style="flex:1">Create Room</button><button class="btn" data-go="join" style="flex:1">Join Room</button></div>
-            <div style="height:10px"></div>
-            <button class="btn block" data-act="offline">Offline Practice</button>
-            <p class="muted" style="font-size:13px;margin:10px 0 0"><span class="status-dot" id="m-dot"></span> <span id="m-status">Checking server...</span></p>
+      <div class="menu-shell">
+        <div class="menu-side">
+          <div class="side-card">
+            <h3>Tank spotlight</h3>
+            <div class="showcase"><canvas id="m-show"></canvas><div id="m-showtxt"></div></div>
           </div>
+          <div class="side-card"><h3>Explore</h3><div class="links">${explore}</div></div>
         </div>
-        <div>
-          <h3>Game mode</h3>
-          <div class="modes">${modes}</div>
-          <h3>Explore</h3>
-          <div class="nav">
-            <button class="btn" data-go="collection">Tank Collection</button>
-            <button class="btn" data-go="progression">Tank Progression</button>
-            <button class="btn" data-go="bosses">Bestiary</button>
-            <button class="btn" data-go="achievements">Achievements</button>
-            <button class="btn" data-go="stats">Statistics</button>
-            <button class="btn" data-go="settings">Settings</button>
-            <button class="btn" data-go="help">Help</button>
-            <button class="btn" data-go="credits">Credits</button>
+        <div class="menu-card">
+          <div class="brand"><canvas id="m-logo"></canvas><div><h1>NEXUS</h1><small>Infinite Warfare</small></div></div>
+          <div class="seg">${MODE_FILTERS.map(([k, n]) => `<button class="${k === this.modeFilter ? 'on' : ''}" data-mf="${k}">${n}</button>`).join('')}</div>
+          <div class="server-list" id="m-list">${this.modeRows()}</div>
+          ${isBattle ? `<div class="row" style="margin-top:10px;gap:10px;background:#fff7ef;border:2px solid #f6c48d;border-radius:14px;padding:8px 10px">
+            <canvas id="m-bt" style="width:48px;height:48px"></canvas>
+            <div style="flex:1"><b>${bt ? esc(bt.name) : 'Random tank'}</b><div class="muted" style="font-size:12px">${bt ? `${esc(bt.role)} &middot; level ${bt.level} class` : 'Pick the tank you spawn with'}</div></div>
+            <button class="btn small orange" data-go="picktank">Choose</button></div>` : ''}
+          <input id="m-name" class="name-input" maxlength="16" placeholder="Enter your name" value="${esc(store.settings.name)}" autocomplete="off" spellcheck="false">
+          <button class="btn primary play-btn" data-act="quick">Play</button>
+          <div class="menu-actions">
+            <button class="btn blue" data-go="create">Create room</button>
+            <button class="btn purple" data-go="join">Join code</button>
+            <button class="btn orange" data-act="offline">Offline</button>
           </div>
-          <div class="panel" style="margin-top:14px;display:grid;grid-template-columns:120px 1fr;gap:14px;align-items:center">
-            <canvas id="m-show" style="width:120px;height:120px"></canvas>
-            <div id="m-showtxt"></div>
-          </div>
+          <div class="menu-foot"><span><span class="status-dot" id="m-dot"></span> <span id="m-status">Checking server...</span></span><span>${TANKS.length} tanks</span></div>
+          <button class="opt-toggle ${this.optOpen ? 'open' : ''}" data-act="opts">view options <span>&#9662;</span></button>
+          ${this.optOpen ? `<div class="opt-pane">
+            <label class="chk"><input type="checkbox" data-set="autoFire" ${store.settings.autoFire ? 'checked' : ''}> Start with auto-fire on</label>
+            <label class="chk"><input type="checkbox" data-set="showNet" ${store.settings.showNet ? 'checked' : ''}> Show ping and frame rate</label>
+            <label class="chk"><input type="checkbox" data-set="reducedEffects" ${store.settings.reducedEffects ? 'checked' : ''}> Reduced effects</label>
+            <div class="row" style="margin-top:6px"><div class="field" style="flex:1;margin:0"><label>Quality</label><select data-set="quality">${['high', 'medium', 'low'].map(q => `<option ${store.settings.quality === q ? 'selected' : ''}>${q}</option>`).join('')}</select></div>
+            <div class="field" style="flex:1;margin:0"><label>Touch</label><select data-set="touch">${[['auto', 'Automatic'], ['on', 'Always on'], ['off', 'Off']].map(([v, t]) => `<option value="${v}" ${store.settings.touch === v ? 'selected' : ''}>${t}</option>`).join('')}</select></div></div>
+            <div class="row" style="margin-top:10px"><button class="btn small" data-go="settings">All settings</button><button class="btn small" data-go="credits">Credits</button></div>
+          </div>` : ''}
         </div>
-      </div>`;
+        <div class="menu-side">
+          <div class="side-card"><h3>What's new</h3><ul class="changes">${CHANGES.map(c => `<li>${esc(c)}</li>`).join('')}</ul></div>
+          <div class="side-card"><h3>Tip</h3><div class="tip" id="m-tip">${esc(TIPS[Math.floor(Math.random() * TIPS.length)])}</div></div>
+        </div>
+      </div>
+      <div class="menu-side mobile hidden-desktop" style="max-width:520px;margin:14px auto 0"><div class="side-card"><div class="links">${explore}</div></div></div>`;
   }
 
   after_main() {
     const base = serverBase();
     const dot = this.root.querySelector('#m-dot'), st = this.root.querySelector('#m-status');
     checkHealth(base).then(h => {
-      if (!dot) return;
-      if (h.ok) { dot.className = 'status-dot ok'; st.textContent = `Server online (${h.platform || 'game server'}) at ${base.replace(/^https?:\/\//, '')}`; }
-      else { dot.className = 'status-dot bad'; st.innerHTML = `${esc(h.reason)}${base ? ` at ${esc(base.replace(/^https?:\/\//, ''))}` : ''}. Online play needs a deployed game server. <a href="#" data-go="settings" style="color:#7cc4ff">Set server address</a>`; }
+      if (!dot || !dot.isConnected) return;
+      if (h.ok) { dot.className = 'status-dot ok'; st.textContent = `Online (${h.platform || 'server'})`; }
+      else { dot.className = 'status-dot bad'; st.innerHTML = `${esc(h.reason)}. <a href="#" data-go="settings">Server address</a>`; }
     });
+    roomCounts(base, Object.keys(MODES).map(k => `pub-${k}-1`)).then(c => {
+      this.counts = c || {};
+      const list = this.root.querySelector('#m-list');
+      if (list && list.isConnected) list.innerHTML = this.modeRows();
+    });
+    const logo = this.root.querySelector('#m-logo');
+    const bt = this.root.querySelector('#m-bt');
     const cv = this.root.querySelector('#m-show'), txt = this.root.querySelector('#m-showtxt');
-    let idx = Math.floor(Math.random() * TANKS.length), last = 0, t0 = performance.now();
+    const pool = TANKS.filter(t => t.level >= 30);
+    let d = pool[Math.floor(Math.random() * pool.length)], last = -1e9, t0 = performance.now();
     const loop = ts => {
-      if (!cv.isConnected) return;
-      if (ts - last > 3500) {
-        idx = Math.floor(Math.random() * TANKS.length); last = ts;
-        const d = TANKS[idx];
-        txt.innerHTML = `<b class="r-${d.rarity}">${esc(d.name)}</b><div class="muted" style="font-size:13px">${esc(d.familyName)} &middot; ${esc(d.role)} &middot; Tier ${d.tier}</div><div style="font-size:13px;margin-top:4px">${esc(ABILITIES[d.ability].name)}: ${esc(ABILITIES[d.ability].desc)}</div>`;
+      if (!logo || !logo.isConnected) return;
+      const time = (ts - t0) / 1000;
+      previewTank(logo, TANKS_BY_ID.get('basic'), '#00b2e1', time);
+      if (bt) previewTank(bt, this.battleTank() || TANKS_BY_ID.get('basic'), '#00b2e1', time);
+      if (cv && cv.offsetParent) {
+        if (ts - last > 4000) {
+          d = pool[Math.floor(Math.random() * pool.length)]; last = ts;
+          txt.innerHTML = `<b>${esc(d.name)}</b><div class="muted" style="font-size:12px">${esc(d.role)} &middot; level ${d.level}</div><div style="font-size:12px;margin-top:4px">${esc(d.tip || SRC_LABEL[d.src])}</div><a href="#" data-tank="${d.index}" style="font-size:12px">Details</a>`;
+        }
+        previewTank(cv, d, '#00b2e1', time);
       }
-      previewTank(cv, TANKS[idx], '#38a3ff', (ts - t0) / 1000);
       this.anim = requestAnimationFrame(loop);
     };
     this.anim = requestAnimationFrame(loop);
@@ -180,41 +239,38 @@ export class Menus {
     const q = c.q.trim().toLowerCase();
     return TANKS.filter(d =>
       (!q || d.name.toLowerCase().includes(q) || d.familyName.toLowerCase().includes(q) || d.role.toLowerCase().includes(q)) &&
-      (!c.family || d.family === c.family) && (!c.role || d.role === c.role) && (!c.rarity || d.rarity === c.rarity) &&
-      (!c.tier || d.tier === Number(c.tier)) && (!c.ability || d.ability === c.ability) && (!c.avail || availability(d) === c.avail) &&
-      (!c.played || (c.played === 'yes') === !!store.stats.tanks[d.id]));
+      (!c.family || d.family === c.family) && (!c.role || d.role === c.role) && (!c.level || d.level === Number(c.level)) &&
+      (!c.src || d.src === c.src) && (!c.played || (c.played === 'yes') === !!store.stats.tanks[d.id]));
   }
 
   screen_collection(o) {
     const c = this.col;
     const sel = (id, label, opts, val) => `<div class="field"><label>${label}</label><select data-col="${id}"><option value="">All</option>${opts.map(([v, t]) => `<option value="${v}" ${String(val) === String(v) ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></div>`;
     const list = this.filtered();
-    const per = 48;
+    const per = 60;
     const pages = Math.max(1, Math.ceil(list.length / per));
     c.page = Math.min(c.page, pages - 1);
     const pageItems = list.slice(c.page * per, c.page * per + per);
     const v = validation();
-    return `${this.backBtn(o.back || 'main')}<h2 class="title">Tank Collection</h2>
-      <p class="muted">${v.count.toLocaleString()} registered tanks across ${v.families} families, all generated from the live registry. ${v.ok ? 'Registry validation passed.' : `Registry validation found ${v.errors.length} issues.`} ${o.pick ? '<b style="color:#ffd84d">Sandbox: tap a tank, then Spawn as this tank.</b>' : ''}</p>
+    return `${this.backBtn(o.back || 'main')}<h2 class="title">All Tanks</h2>
+      <p class="muted">${v.count} tanks: ${v.arras} from the arras.io class tree, ${v.armsRace} from Arms Race and ${v.nexus} Nexus originals. ${v.ok ? 'Every tank is reachable from Basic.' : `Validation found ${v.errors.length} issues.`} ${o.pick ? '<b style="color:var(--orange-d)">Sandbox: tap a tank, then Spawn as this tank.</b>' : ''}</p>
       <div class="collection"><div>
         <div class="filters">
-          <div class="field"><label>Search</label><input data-col="q" value="${esc(c.q)}" placeholder="Name, family or role"></div>
-          ${sel('family', 'Family', [['basic', 'Basic'], ...TANK_FAMILIES.map(f => [f.key, f.name])], c.family)}
+          <div class="field"><label>Search</label><input data-col="q" value="${esc(c.q)}" placeholder="Name or role"></div>
+          ${sel('family', 'Branch', TANK_FAMILIES.map(f => [f.key, f.name]), c.family)}
           ${sel('role', 'Role', ROLES.map(r => [r, r]), c.role)}
-          ${sel('rarity', 'Rarity', RARITIES.map(r => [r, r]), c.rarity)}
-          ${sel('tier', 'Tier', [[1, 'Tier 1'], [2, 'Tier 2'], [3, 'Tier 3'], [4, 'Tier 4']], c.tier)}
-          ${sel('ability', 'Ability', Object.entries(ABILITIES).filter(([k]) => k !== 'none').map(([k, a]) => [k, a.name]), c.ability)}
-          ${sel('avail', 'Availability', Object.entries(AVAIL_LABEL), c.avail)}
-          ${sel('played', 'Unlocked', [['yes', 'Played'], ['no', 'Not played yet']], c.played)}
+          ${sel('level', 'Level', [[1, 'Level 1'], [15, 'Level 15'], [30, 'Level 30'], [45, 'Level 45'], [60, 'Level 60']], c.level)}
+          ${sel('src', 'Source', Object.entries(SRC_LABEL), c.src)}
+          ${sel('played', 'Played', [['yes', 'Played'], ['no', 'Not played yet']], c.played)}
         </div>
-        <div class="cards">${pageItems.map(d => `<button class="card ${d.index === c.sel ? 'on' : ''}" data-tank="${d.index}"><canvas data-prev="${d.index}"></canvas><b class="r-${d.rarity}">${esc(d.name)}</b><span class="muted">T${d.tier} &middot; ${esc(d.familyName)}</span></button>`).join('') || '<p class="muted">No tanks match these filters.</p>'}</div>
+        <div class="cards">${pageItems.map(d => `<button class="card ${d.index === c.sel ? 'on' : ''}" data-tank="${d.index}" style="--tile:${tileColor(d)}"><canvas data-prev="${d.index}"></canvas><b>${esc(d.name)}</b><span>Lv ${d.level} &middot; ${esc(d.role)}</span></button>`).join('') || '<p class="muted">No tanks match these filters.</p>'}</div>
         <div class="pager"><button class="btn small" data-page="-1" ${c.page === 0 ? 'disabled' : ''}>Prev</button><span class="muted">Page ${c.page + 1} of ${pages} &middot; ${list.length} tanks</span><button class="btn small" data-page="1" ${c.page >= pages - 1 ? 'disabled' : ''}>Next</button></div>
       </div>
       <div class="panel" id="col-detail" style="align-self:start;position:sticky;top:0"></div></div>`;
   }
 
   after_collection(o) {
-    this.root.querySelectorAll('canvas[data-prev]').forEach(cv => previewTank(cv, TANKS[Number(cv.dataset.prev)]));
+    this.root.querySelectorAll('canvas[data-prev]').forEach(cv => previewTank(cv, TANKS[Number(cv.dataset.prev)], '#00b2e1'));
     this.renderDetail(o);
   }
 
@@ -223,61 +279,79 @@ export class Menus {
     if (!box) return;
     const d = TANKS[this.col.sel] || TANKS[0];
     const p = d.profile;
-    const bar = (label, v, max) => `<div style="display:grid;grid-template-columns:90px 1fr 50px;gap:8px;align-items:center;font-size:13px"><span class="muted">${label}</span><div class="bar"><i style="width:${Math.min(100, v / max * 100)}%"></i></div><span>${v}</span></div>`;
+    const bar = (label, v, max, col) => `<div style="display:grid;grid-template-columns:90px 1fr 46px;gap:8px;align-items:center;font-size:13px;margin:3px 0"><span class="muted">${label}</span><div class="bar"><i style="width:${Math.min(100, v / max * 100)}%;background:${col}"></i></div><span>${v}</span></div>`;
     const kinds = {};
-    for (const g of d.guns) kinds[g.k] = (kinds[g.k] || 0) + g.n;
-    const flags = [...new Set(d.guns.flatMap(g => Object.keys(g.fx)))];
-    const from = TANKS.filter(t => t.next.includes(d.id));
-    const req = [`Level ${d.req.level}`];
-    if (d.doctrine !== 'std' && d.tier >= 2) req.push('1 relic core to adopt the doctrine');
-    if (d.family === 'experimental') req.push('2 relic cores held');
-    if (d.req.bossKill) req.push('Take part in a boss victory');
-    if (d.tier === 1 && d.doctrine !== 'std') req.push('Doctrine variants become usable from tier 2');
+    for (const g of d.guns) if (!g.deco) kinds[g.k] = (kinds[g.k] || 0) + 1;
+    const flags = [...new Set(d.guns.filter(g => !g.deco).flatMap(g => Object.keys(g.fx)))];
+    const from = (d.parents || []).map(id => TANKS_BY_ID.get(id)).filter(Boolean);
+    const link = t => `<a href="#" data-tank="${t.index}">${esc(t.name)}</a>`;
     box.innerHTML = `
-      <canvas id="col-big" style="width:100%;height:200px"></canvas>
-      <h3 class="r-${d.rarity}" style="margin-top:6px">${esc(d.name)}</h3>
-      <p class="muted" style="margin:0 0 8px">${esc(d.familyName)} family &middot; ${esc(d.role)} &middot; Tier ${d.tier} &middot; <span class="r-${d.rarity}">${d.rarity}</span></p>
-      ${bar('Damage/s', p.dps, 120)}${bar('Range', p.range, 1500)}${bar('Mobility', p.mobility, 140)}${bar('Durability', p.durability, 160)}${bar('Control', p.control, 12)}${bar('Coverage', p.coverage, 12)}${bar('Burst', p.burst, 60)}
+      <canvas id="col-big" style="width:100%;height:190px;border-radius:14px;background:${tileColor(d)}"></canvas>
+      <h3 style="margin:10px 0 2px;font-size:22px">${esc(d.name)}</h3>
+      <p class="muted" style="margin:0 0 8px">${esc(d.role)} &middot; level ${d.level} &middot; ${SRC_LABEL[d.src]}</p>
+      ${d.tip ? `<p style="margin:0 0 8px">${esc(d.tip)}</p>` : ''}
+      ${bar('Damage/s', p.dps, 150, '#f14e54')}${bar('Range', p.range, 1600, '#00b2e1')}${bar('Speed', p.mobility, 140, '#00c864')}${bar('Health', p.durability, 180, '#b57cf0')}${bar('Burst', p.burst, 60, '#fc9a4a')}
       <dl class="kv" style="margin-top:10px">
-        <dt>Weapons</dt><dd>${Object.entries(kinds).map(([k, n]) => `${n} ${k}`).join(', ') || 'Body only (ram)'}</dd>
-        <dt>Effects</dt><dd>${flags.map(f => esc(FLAG_INFO[f])).join('; ') || 'None'}</dd>
+        <dt>Weapons</dt><dd>${Object.entries(kinds).map(([k, n]) => `${n} ${k === 'shell' ? 'missile' : k}${n > 1 ? 's' : ''}`).join(', ') || 'Body only (rammer)'}${d.turrets.length ? `, ${d.turrets.length} auto turret${d.turrets.length > 1 ? 's' : ''}` : ''}</dd>
+        <dt>Effects</dt><dd>${flags.map(f => esc(FLAG_INFO[f])).join('; ') || 'None'}${d.stealth ? '; invisible when still' : ''}</dd>
         <dt>Ability</dt><dd>${esc(ABILITIES[d.ability].name)}${d.ability !== 'none' ? `: ${esc(ABILITIES[d.ability].desc)}` : ''}</dd>
-        <dt>Passive</dt><dd>${esc(d.passive)}</dd>
-        <dt>Weakness</dt><dd>${esc(d.weakness)}</dd>
-        <dt>Requires</dt><dd>${req.map(esc).join(', ')}</dd>
-        <dt>Availability</dt><dd>${AVAIL_LABEL[availability(d)]}; any tank is selectable in Sandbox</dd>
-        <dt>Evolves from</dt><dd>${from.length ? from.slice(0, 6).map(t => `<a href="#" data-tank="${t.index}" style="color:#7cc4ff">${esc(t.name)}</a>`).join(', ') : 'Start'}</dd>
-        <dt>Evolves into</dt><dd>${d.next.length ? d.next.map(id => TANKS_BY_ID.get(id)).map(t => `<a href="#" data-tank="${t.index}" style="color:#7cc4ff">${esc(t.name)}</a>`).join(', ') : 'Final form'}</dd>
-        <dt>ID</dt><dd><code>${esc(d.id)}</code></dd>
+        <dt>Branch</dt><dd>${esc(d.familyName)}</dd>
+        <dt>From</dt><dd>${from.length ? from.map(link).join(', ') : 'Start'}</dd>
+        <dt>Into</dt><dd>${d.next.length ? d.next.map(id => TANKS_BY_ID.get(id)).map(link).join(', ') : 'Final form'}</dd>
       </dl>
-      ${o.pick ? `<button class="btn primary block" data-act="sbspawn" data-i="${d.index}">Spawn as this tank</button>` : ''}`;
+      ${o.pick ? `<button class="btn primary block" data-act="sbspawn" data-i="${d.index}" style="margin-top:12px">Spawn as this tank</button>` : `<button class="btn small" data-act="treeof" data-i="${d.index}" style="margin-top:12px">Show in class tree</button>`}`;
     const cv = box.querySelector('#col-big');
     const t0 = performance.now();
     cancelAnimationFrame(this.anim);
     const loop = ts => {
       if (!cv.isConnected) return;
-      previewTank(cv, d, '#38a3ff', (ts - t0) / 1000);
+      previewTank(cv, d, '#00b2e1', (ts - t0) / 1000);
       this.anim = requestAnimationFrame(loop);
     };
     this.anim = requestAnimationFrame(loop);
   }
 
-  screen_progression() {
-    const doc = this.treeDoc || 'std';
-    return `${this.backBtn()}<h2 class="title">Tank Progression</h2>
+  treeScreen(title, note, back) {
+    const root = this.treeRoot;
+    const chips = [['basic', 'Everything'], ...TANK_FAMILIES.map(f => [f.key, f.name])].map(([k, n]) => `<button class="chip ${k === root ? 'on' : ''}" data-tree="${k}">${esc(n)}</button>`).join('');
+    const legend = [['Level 1', 0], ['Level 15', 1], ['Level 30', 2], ['Level 45', 3], ['Level 60', 4], ['Nexus original', 5]].map(([n, i]) => `<span><i style="background:${TIER_COLORS[i]}"></i>${n}</span>`).join('');
+    return `${this.backBtn(back)}<h2 class="title">${title}</h2>
       <div class="panel">
-      <p>Every tank starts as <b>Basic</b> and evolves at level 15, 30 and 45. Rows are tiers; columns below a tank are its later forms. Tap any tank to open it in the collection.</p>
-      <div class="chips" style="margin-bottom:10px">${DOCTRINES.map(d => `<button class="chip ${d.key === doc ? 'on' : ''}" data-doc="${d.key}">${d.name}</button>`).join('')}</div>
+      <p style="margin-top:0">${note}</p>
+      <div class="chips tree-chips">${chips}</div>
+      <div class="legend">${legend}</div>
       <div class="tree-scroll"><canvas id="p-tree"></canvas></div>
-      <p class="muted" style="font-size:13px">Doctrines are a second axis: ${DOCTRINES.length} ammunition styles that change how every barrel behaves. Adopting one costs a relic core. ${TANK_FAMILIES.length + 1} families x 4 forms x ${DOCTRINES.length} doctrines = ${TANKS.length} tanks. The Relic family needs a boss victory, Experimental needs 2 relic cores held.</p>
-      <ul class="muted" style="font-size:13px">${DOCTRINES.map(d => `<li><b style="color:var(--text)">${d.name}</b>: ${esc(d.passive)}. ${esc(d.weakness)}.</li>`).join('')}</ul>
       </div>`;
+  }
+
+  screen_progression() {
+    return this.treeScreen('Class Tree', `Every tank starts as <b>Basic</b> and upgrades at levels 15, 30, 45 and 60. This is the arras.io class tree, with Arms Race tanks at level 60 and Nexus originals in orange. Pick a branch to zoom in, then tap a tank for details.`, 'main');
   }
 
   after_progression() {
     const cv = this.root.querySelector('#p-tree');
-    const hits = drawTree(cv, { doc: this.treeDoc || 'std' });
+    const hits = drawTree(cv, { root: this.treeRoot, highlight: this.col.sel });
+    scrollToNode(cv, hits, this.treeRoot === 'basic' ? -1 : this.col.sel);
     cv.onclick = ev => { const h = hitTest(hits, cv, ev); if (h) { this.col.sel = h.idx; this.show('collection', { back: 'progression' }); } };
+  }
+
+  screen_picktank() {
+    const bt = this.battleTank();
+    return this.treeScreen('Choose your Battle tank', `Battle modes skip leveling: you spawn at level ${MAX_LEVEL} as the tank you pick here, and you can switch from the Tanks button in game. Current choice: <b>${bt ? esc(bt.name) : 'random'}</b>.`, 'main');
+  }
+
+  after_picktank() {
+    const cv = this.root.querySelector('#p-tree');
+    const bt = this.battleTank();
+    const hits = drawTree(cv, { root: this.treeRoot, highlight: bt ? bt.index : -1 });
+    scrollToNode(cv, hits, -1);
+    cv.onclick = ev => {
+      const h = hitTest(hits, cv, ev);
+      if (!h) return;
+      store.battleTank = TANKS[h.idx].id;
+      save();
+      this.show('main');
+    };
   }
 
   screen_bosses() {
@@ -377,8 +451,8 @@ export class Menus {
         <div class="panel"><h3 style="margin-top:0">Keyboard and mouse</h3><dl class="kv">
           <dt>Move</dt><dd>WASD or arrow keys</dd><dt>Aim</dt><dd>Mouse</dd><dt>Fire</dt><dd>Left mouse (drones follow the cursor)</dd>
           <dt>Repel drones</dt><dd>Right mouse</dd><dt>Ability</dt><dd>Space, Shift or Q</dd><dt>Auto-fire</dt><dd>E</dd>
-          <dt>Upgrade stats</dt><dd>1 to 8</dd><dt>Evolve</dt><dd>Y U I O H J K L, or click</dd><dt>Doctrine</dt><dd>G</dd>
-          <dt>Upgrade tree</dt><dd>N</dd><dt>Players</dt><dd>Tab</dd><dt>Team upgrades</dt><dd>T (Nexus Siege)</dd><dt>Sandbox panel</dt><dd>B</dd><dt>Respawn</dt><dd>R</dd><dt>Menu</dt><dd>Esc</dd></dl></div>
+          <dt>Upgrade stats</dt><dd>1 to 8</dd><dt>Upgrade tank</dt><dd>Y U I O H J K L, or click</dd>
+          <dt>Class tree</dt><dd>N</dd><dt>Choose tank</dt><dd>B (Battle and Sandbox)</dd><dt>Players</dt><dd>Tab</dd><dt>Team upgrades</dt><dd>T (Nexus Siege)</dd><dt>Sandbox panel</dt><dd>B</dd><dt>Respawn</dt><dd>R</dd><dt>Menu</dt><dd>Esc</dd></dl></div>
         <div class="panel"><h3 style="margin-top:0">Touch (phone and iPad)</h3><p>Left side of the screen: drag to move. Right side: drag to aim and fire. The round button shows your ability and its cooldown. Toggle auto-fire with the AUTO FIRE button. Landscape is recommended.</p></div>
         <div class="panel"><h3 style="margin-top:0">Modes</h3>${Object.values(MODES).map(m => `<p><b>${m.name}.</b> ${m.desc}</p>`).join('')}</div>
         <div class="panel"><h3 style="margin-top:0">Nexus Siege</h3><p>Each Nexus is protected by a regenerating shield while its two shield generators stand. Destroy the generators to stop regeneration and weaken the shield, then break the shield and the core. Team credits buy shared upgrades. Destroyed defenses rebuild over time or with credits.</p></div>
@@ -389,10 +463,11 @@ export class Menus {
 
   screen_credits() {
     return `${this.backBtn()}<h2 class="title">Credits</h2><div class="panel">
-      <p><b>Nexus: Infinite Warfare</b> is an original game inspired by the arena tank genre. All tanks, bosses, maps and effects are drawn in code at runtime.</p>
-      <p>Built with HTML Canvas 2D, plain JavaScript modules and WebSockets. The authoritative server runs on Node.js (ws) or Cloudflare Durable Objects.</p>
-      <p>Fonts: Chakra Petch and IBM Plex Sans via Google Fonts.</p>
-      <p class="muted">Registry: ${TANKS.length} tanks, ${TANK_FAMILIES.length + 1} families, ${BOSSES.length} bosses, ${Object.keys(PROJECTILE_KINDS).length} projectile kinds, ${STAT_NAMES.length} stats.</p></div>`;
+      <p><b>Nexus: Infinite Warfare</b> is a fan-made arena tank game. Everything is drawn in code at runtime.</p>
+      <p>The tank class tree, barrel layouts and weapon numbers are converted from <a href="https://github.com/open-source-arras/open-source-arras" target="_blank" rel="noopener">Open Source Arras</a> (MIT License, Copyright (c) 2026 Open Source Arras), which recreates the arras.io class tree and the Arms Race expansion. The conversion is done by <code>tools/arras-import.js</code> and <code>tools/arras-convert.js</code> in this project.</p>
+      <p>arras.io and diep.io belong to their creators. This project is not affiliated with them.</p>
+      <p>Built with HTML Canvas 2D, plain JavaScript modules and WebSockets. The server runs on Node.js (ws) or Cloudflare Durable Objects. Font: Ubuntu via Google Fonts.</p>
+      <p class="muted">${TANKS.length} tanks, ${BOSSES.length} bosses, ${Object.keys(PROJECTILE_KINDS).length} projectile kinds, ${STAT_NAMES.length} stats.</p></div>`;
   }
 
   onInput(e) {
@@ -410,7 +485,7 @@ export class Menus {
       let v = t.type === 'checkbox' ? t.checked : t.type === 'range' ? Number(t.value) : t.value;
       setSetting(k, v);
       if (k === 'volume') setVolume(v);
-      if (e.type === 'change' && (t.type === 'range')) this.show('settings', this.opts);
+      if (e.type === 'change' && (t.type === 'range') && this.current === 'settings') this.show('settings', this.opts);
       this.app.onSettingsChanged(k);
     }
   }
@@ -419,10 +494,16 @@ export class Menus {
     const go = e.target.closest('[data-go]');
     if (go && go.dataset.go === 'game') { e.preventDefault(); return this.app.closeOverlay(); }
     if (go) { e.preventDefault(); return this.show(go.dataset.go, go.dataset.go === 'settings' || go.dataset.go === 'help' ? { back: this.current === 'error' ? 'main' : (this.opts && this.opts.back) || 'main' } : {}); }
-    const dc = e.target.closest('[data-doc]');
-    if (dc && this.current === 'progression') { this.treeDoc = dc.dataset.doc; return this.show('progression'); }
+    const tr = e.target.closest('[data-tree]');
+    if (tr) { this.treeRoot = tr.dataset.tree; return this.show(this.current, this.opts); }
+    const mf = e.target.closest('[data-mf]');
+    if (mf) { this.modeFilter = mf.dataset.mf; return this.show('main'); }
     const md = e.target.closest('[data-mode]');
-    if (md) { this.mode = md.dataset.mode; setSetting('lastMode', this.mode); return this.show('main'); }
+    if (md) {
+      const keepName = this.root.querySelector('#m-name');
+      if (keepName) setSetting('name', keepName.value.slice(0, 16));
+      this.mode = md.dataset.mode; setSetting('lastMode', this.mode); return this.show('main');
+    }
     const tk = e.target.closest('[data-tank]');
     if (tk) {
       e.preventDefault();
@@ -440,6 +521,8 @@ export class Menus {
     const a = act.dataset.act;
     const name = () => (store.settings.name || '').trim() || 'Tank';
     if (a === 'quick') this.app.quickPlay(this.mode, name());
+    else if (a === 'opts') { this.optOpen = !this.optOpen; this.show('main'); }
+    else if (a === 'treeof') { const d = TANKS[Number(act.dataset.i)]; this.treeRoot = d.family === 'basic' ? 'basic' : d.family; this.show('progression'); }
     else if (a === 'offline') this.show('offline');
     else if (a === 'offlinego') { const r = this.readSettings('o'); this.app.offline(r.mode, r.settings, name()); }
     else if (a === 'create') { const r = this.readSettings('c'); this.app.createRoom(r.mode, r.settings, name()); }

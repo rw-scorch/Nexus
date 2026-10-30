@@ -79,8 +79,8 @@ export const ACHIEVEMENTS = [
   { id: 'team_player', name: 'Team Player', desc: 'Earn 30 assists', ev: 'assist', n: 30 },
   { id: 'artillery', name: 'Heavy Artillery Specialist', desc: 'Get 10 kills with an Artillery or Siege tank', ev: 'kill_artillery', n: 10 },
   { id: 'drones', name: 'Drone Commander', desc: 'Get 10 kills with a drone tank', ev: 'kill_drone', n: 10 },
-  { id: 'rare', name: 'Rare Tank Collector', desc: 'Play 10 different legendary or mythic tanks', ev: 'rare_tank', n: 10 },
-  { id: 'tier4', name: 'Apex Form', desc: 'Reach a tier 4 tank', ev: 'tier4', n: 1 },
+  { id: 'rare', name: 'Rare Tank Collector', desc: 'Play 10 different level 60 or Nexus original tanks', ev: 'rare_tank', n: 10 },
+  { id: 'tier4', name: 'Apex Form', desc: 'Upgrade to a level 45 tank', ev: 'tier4', n: 1 },
   { id: 'nexus_win', name: 'Siege Master', desc: 'Win a Nexus Siege match', ev: 'nexus_win', n: 1 },
   { id: 'elite', name: 'Elite Breaker', desc: 'Destroy 10 elite enemies', ev: 'elite', n: 10 },
   { id: 'healer', name: 'Field Medic', desc: 'Heal 5000 ally health', ev: 'heal', n: 5000 }

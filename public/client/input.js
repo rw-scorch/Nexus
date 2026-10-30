@@ -36,7 +36,6 @@ export class Input {
       if (k === 'escape') this.hooks.onToggle('pause');
       if (k === 't') this.hooks.onToggle('team');
       if (k === 'b') this.hooks.onToggle('sandbox');
-      if (k === 'g') this.hooks.onToggle('doctrine');
       if (k === 'r') this.hooks.onRespawn();
       if (k === 'm') this.hooks.onToggle('minimap');
       if (k === 'n') this.hooks.onToggle('tree');

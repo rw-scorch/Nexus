@@ -1,5 +1,5 @@
 import { TEAM, TILE } from '../constants.js';
-import { TANKS, doctrineVariant } from '../tank-registry.js';
+import { TANKS } from '../tank-registry.js';
 import { BASE } from '../weapon-registry.js';
 import { leadAngle, nearestTarget, approachAngle, isTarget } from './combat.js';
 import { HAZ } from '../entity-types.js';
@@ -18,9 +18,9 @@ const BUILDS = {
 };
 
 function roleOf(def) {
-  if (!def.guns.length || def.family === 'smasher' || def.family === 'tempest' || def.family === 'thornback') return 'ram';
-  if (def.guns.some(g => g.k === 'drone' || g.k === 'minion')) return 'drone';
-  if (def.family === 'sniper' || def.family === 'assassin' || def.family === 'hunter' || def.family === 'artillery') return 'sniper';
+  if (def.smasher || !def.guns.some(g => !g.deco)) return 'ram';
+  if (def.role === 'Drones' || def.role === 'Factory') return 'drone';
+  if (def.role === 'Sniper' || def.role === 'Artillery' || def.role === 'Energy') return 'sniper';
   return 'default';
 }
 
@@ -29,7 +29,7 @@ function preferredRange(def) {
   if (r === 'ram') return 0;
   if (r === 'sniper') return 620;
   if (r === 'drone') return 380;
-  if (def.family === 'assault') return 170;
+  if (def.role === 'Traps') return 300;
   return 400;
 }
 
@@ -162,10 +162,6 @@ function think(world, t, b, D) {
     const same = opts.filter(i => TANKS[i].family === t.def.family);
     const pool = same.length && ((b.seed >> 3) & 1) ? same : opts;
     world.evolve(t, pool[(b.seed + t.level) % pool.length]);
-  }
-  if (t.def.tier >= 2 && t.def.doctrine === 'std' && p.cores >= 1) {
-    const keys = ['prc', 'vol', 'skr', 'ric', 'cls', 'arc', 'mnd'];
-    world.logic.applyDoctrine(t, keys[b.seed % keys.length]);
   }
   const hpFrac = t.hp / t.maxHp;
   if (hpFrac < 0.3) b.retreat = true;

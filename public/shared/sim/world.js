@@ -1,7 +1,7 @@
 import { TILE, DT, TEAM, TILES, isSolidTile, MAX_LEVEL, xpForLevel, levelForXp, DEFAULT_SETTINGS, MAX_BULLETS, MAX_MOBS, STAT_MAX } from '../constants.js';
 import { makeRng } from '../rng.js';
 import { generateMap, tileIndexAt } from '../map-generator.js';
-import { TANKS, tankByIndex, BASIC_INDEX } from '../tank-registry.js';
+import { TANKS, TANKS_BY_ID, tankByIndex, BASIC_INDEX } from '../tank-registry.js';
 import { SHAPES, MOBS, STRUCTURES, PICKUPS } from '../entity-types.js';
 import { BASE } from '../weapon-registry.js';
 import { Grid } from './grid.js';
@@ -221,8 +221,9 @@ export class World {
   spawnTank(p) {
     const pos = this.logic.spawnPoint(p);
     const keep = this.settings.deathRule === 'keepThird' ? Math.max(1, Math.floor(p.carryLevel / 3)) : this.settings.deathRule === 'keepHalf' ? Math.max(1, Math.floor(p.carryLevel / 2)) : 1;
-    const level = this.mode === 'sandbox' ? Math.max(keep, p.sandboxLevel || 1) : keep;
-    const def = this.mode === 'sandbox' && p.sandboxDef !== undefined ? tankByIndex(p.sandboxDef) : tankByIndex(BASIC_INDEX);
+    const setup = this.logic.spawnSetup ? this.logic.spawnSetup(p, keep) : null;
+    const level = setup ? setup.level : keep;
+    const def = setup && setup.def ? setup.def : tankByIndex(BASIC_INDEX);
     const t = this.add({
       type: 'tank', player: p, pid: p.pid, name: p.name, team: this.logic.entityTeam(p), isBot: p.isBot,
       x: pos.x, y: pos.y, r: 22, def, defIdx: def.index, level, xp: xpForLevel(level), stats: [0, 0, 0, 0, 0, 0, 0, 0],
@@ -268,10 +269,11 @@ export class World {
     t.defIdx = def.index;
     t.swapped = false;
     t.reload = [];
+    t.turAng = null;
     t.player.defIdx = def.index;
     this.refreshTank(t);
-    if (def.rarity === 'legendary' || def.rarity === 'mythic') this.emit({ k: 'personal', pid: t.pid, ev: 'rare_tank', tank: def.id });
-    if (def.tier >= 4) this.emit({ k: 'personal', pid: t.pid, ev: 'tier4' });
+    if (def.src === 'nexus' || def.level >= 60) this.emit({ k: 'personal', pid: t.pid, ev: 'rare_tank', tank: def.id });
+    if (def.level >= 45) this.emit({ k: 'personal', pid: t.pid, ev: 'tier4' });
   }
 
   giveXp(t, amount) {
@@ -308,18 +310,14 @@ export class World {
     return true;
   }
 
-  meetsReq(t, def, includeDoctrineCost) {
-    if (t.level < def.req.level) return false;
-    if (def.req.bossKill && t.player.bossKills < def.req.bossKill) return false;
-    if (def.req.cores && def.family !== 'basic' && (def.family === 'experimental') && t.player.cores < 2) return false;
-    if (includeDoctrineCost && def.doctrine !== 'std' && t.player.cores < 1) return false;
-    return true;
+  meetsReq(t, def) {
+    return t.level >= def.req.level;
   }
 
   evoOptions(t) {
     const out = [];
     for (const id of t.def.next) {
-      const d = TANKS.find(x => x.id === id);
+      const d = TANKS_BY_ID.get(id);
       if (d && this.meetsReq(t, d, false)) out.push(d.index);
     }
     return out;
@@ -460,7 +458,7 @@ export class World {
     p.deaths++;
     p.carryLevel = t.level;
     p.deathX = t.x; p.deathY = t.y;
-    p.respawnAt = this.time + 3.5;
+    p.respawnAt = this.time + (this.logic.respawnDelay ? this.logic.respawnDelay() : 3.5);
     p.tankId = 0;
     p.best = Math.max(p.best, Math.floor(t.xp));
     this.addFx('death', t.x, t.y, t.r);
@@ -484,9 +482,8 @@ export class World {
       let reward = Math.max(40, t.xp * 0.33) * repeat;
       if (this.global.bountyId === t.id) { reward *= 3; kp.cores++; this.emit({ k: 'announce', text: `${kp.name} claimed the bounty on ${p.name}`, tone: 'gold' }); this.global.bountyId = 0; }
       this.giveXp(killerTank, reward);
-      const fam = killerTank.def.family;
       this.emit({ k: 'personal', pid: kp.pid, ev: 'kill' });
-      if (fam === 'artillery' || fam === 'siege') this.emit({ k: 'personal', pid: kp.pid, ev: 'kill_artillery' });
+      if (killerTank.def.role === 'Artillery') this.emit({ k: 'personal', pid: kp.pid, ev: 'kill_artillery' });
       if (killerTank.def.guns.some(g => g.k === 'drone' || g.k === 'minion' || g.k === 'swarm')) this.emit({ k: 'personal', pid: kp.pid, ev: 'kill_drone' });
       for (const [aid, rec] of t.damageLog) {
         if (aid === killerTank.id || this.time - rec.t > 8) continue;
@@ -662,6 +659,7 @@ export class World {
         updateAbilities(this, e, dt);
         updateTankWeapons(this, e, dt);
         const s = e.status;
+        if (e.def.stealth && Math.hypot(e.vx, e.vy) < 45 && this.time - e.lastFire > 1.2) s.cloakUntil = Math.max(s.cloakUntil || 0, this.time + 0.15);
         if (this.time - e.lastHurt > 8) e.hp = Math.min(e.maxHp, e.hp + e.maxHp * 0.025 * dt);
         e.hp = Math.min(e.maxHp, e.hp + e.regen * dt);
         if (s.overdriveUntil > this.time) this.damage(e, e.maxHp * 0.035 * dt, null, {});

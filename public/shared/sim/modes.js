@@ -1,7 +1,8 @@
 import { TILE, TEAM, TILES, isSolidTile, MODES } from '../constants.js';
 import { SHAPES, MOBS, UPGRADES, HAZ, MAP_THEMES } from '../entity-types.js';
 import { BOSSES, BOSS_BY_KEY } from '../boss-registry.js';
-import { TANKS, doctrineVariant, tankByIndex } from '../tank-registry.js';
+import { TANKS, tankByIndex } from '../tank-registry.js';
+import { MAX_LEVEL } from '../constants.js';
 import { spawnBoss } from './bosses.js';
 import { structFire } from './combat.js';
 import { tileIndexAt } from '../map-generator.js';
@@ -18,12 +19,14 @@ export function createMode(world) {
   const isLab = mode === 'labyrinth' || mode === 'labyrinth_team';
   const isNexus = mode === 'nexus';
   const isSandbox = mode === 'sandbox';
+  const isBattle = !!(MODES[mode] && MODES[mode].battle);
+  const battlePool = TANKS.filter(t => t.level >= 45).map(t => t.index);
   const map = world.map;
   const S = world.settings;
   const rng = world.rng;
 
   const state = {
-    nextBossAt: isSandbox ? 1e12 : world.time + Math.max(60, S.bossInterval * 0.6),
+    nextBossAt: isSandbox || isBattle ? 1e12 : world.time + Math.max(60, S.bossInterval * 0.6),
     nextEventAt: world.time + rng.range(70, 110),
     activeEvents: [],
     lastNullAt: -1e9,
@@ -37,7 +40,7 @@ export function createMode(world) {
     shrines: []
   };
 
-  const shapeTarget = isLab ? (map.theme === 'endless' ? 300 : 190) : isNexus ? 170 : 250;
+  const shapeTarget = isBattle ? 36 : isLab ? (map.theme === 'endless' ? 300 : 190) : isNexus ? 170 : 250;
 
   function bossesActive() { return world.ents.filter(e => !e.dead && e.type === 'boss'); }
 
@@ -96,7 +99,7 @@ export function createMode(world) {
         const c = { x: world.W / 2, y: world.H / 2 };
         world.addShape('alpha', c.x, c.y);
       }
-      if (map.kind === 'nexus' || map.kind === 'arena' || map.kind === 'maze') {
+      if (!isBattle && (map.kind === 'nexus' || map.kind === 'arena' || map.kind === 'maze')) {
         const shrine = world.addStruct('shrine', world.W / 2, world.H / 2, TEAM.NEUTRAL, { hp: 6000, armor: 0.3 });
         shrine.static = true;
         state.shrines.push({ id: shrine.id, x: shrine.x, y: shrine.y, respawnAt: 0, chamber: null });
@@ -186,8 +189,8 @@ export function createMode(world) {
       }
       if (isLab && world.tick % 15 === 0) this.labyrinthTick();
       if (isNexus) this.nexusTick(dt);
-      if (!isSandbox && now >= state.nextBossAt) this.timedBoss();
-      if (!isSandbox && now >= state.nextEventAt) this.startEvent();
+      if (!isSandbox && !isBattle && now >= state.nextBossAt) this.timedBoss();
+      if (!isSandbox && !isBattle && now >= state.nextEventAt) this.startEvent();
       state.activeEvents = state.activeEvents.filter(e => e.until > now);
       if (world.global.bountyId && (now > world.global.bountyUntil || !world.get(world.global.bountyId))) world.global.bountyId = 0;
       for (const sh of state.shrines) {
@@ -545,15 +548,33 @@ export function createMode(world) {
       return sp;
     },
 
-    applyDoctrine(t, key) {
-      const p = t.player;
-      if (!t || t.dead || t.def.tier < 2 || t.def.doctrine === key) return false;
-      if (p.docCdUntil > world.time) return false;
-      const v = doctrineVariant(t.def, key);
-      if (!v) return false;
-      if (key !== 'std') { if (p.cores < 1 && !isSandbox) return false; if (!isSandbox) p.cores--; }
-      world.setTankDef(t, v);
-      p.docCdUntil = world.time + 20;
+    spawnSetup(p, keep) {
+      if (isBattle) {
+        let idx = p.battleDef;
+        if (p.isBot || idx === undefined || !TANKS[idx]) idx = p.isBot || idx === undefined ? battlePool[rng.int(0, battlePool.length - 1)] : idx;
+        return { level: MAX_LEVEL, def: tankByIndex(idx) };
+      }
+      if (isSandbox) return { level: Math.max(keep, p.sandboxLevel || 1), def: p.sandboxDef !== undefined ? tankByIndex(p.sandboxDef) : null };
+      return null;
+    },
+
+    respawnDelay() { return isBattle ? 2 : 3.5; },
+
+    pickTank(p, msg) {
+      if (!Number.isInteger(msg.idx) || !TANKS[msg.idx]) return false;
+      const t = world.tankOf(p);
+      if (isSandbox) {
+        p.sandboxDef = msg.idx;
+        if (t) world.setTankDef(t, TANKS[msg.idx]);
+        return true;
+      }
+      if (!isBattle) return false;
+      p.battleDef = msg.idx;
+      if (t && (world.time - t.born < 12 || t.spawnProtect > world.time) && t.hp >= t.maxHp * 0.98) {
+        world.setTankDef(t, TANKS[msg.idx]);
+      } else if (t) {
+        world.emit({ k: 'toast', pid: p.pid, text: `${TANKS[msg.idx].name} will be used when you respawn`, tone: 'info' });
+      }
       return true;
     },
 
@@ -590,15 +611,11 @@ export function createMode(world) {
     },
 
     sandboxCommand(p, msg) {
+      if (msg.t === 'p') return this.pickTank(p, msg);
       if (!isSandbox) return false;
       const t = world.tankOf(p);
-      if (msg.t === 'p' && Number.isInteger(msg.idx) && TANKS[msg.idx]) {
-        p.sandboxDef = msg.idx;
-        if (t) { world.setTankDef(t, TANKS[msg.idx]); }
-        return true;
-      }
       if (msg.t === 'lvl' && t) {
-        p.sandboxLevel = 45;
+        p.sandboxLevel = MAX_LEVEL;
         world.giveXp(t, Math.max(0, 1e6 - t.xp));
         return true;
       }
@@ -630,6 +647,7 @@ export function createMode(world) {
         out.ch = state.chambers.map(c => [Math.round(c.x), Math.round(c.y), c.bossId ? 1 : world.time < c.cooldownUntil ? 2 : 0]);
       }
       if (world.global.bountyId) out.bounty = world.global.bountyId;
+      if (isBattle) out.bt = p.battleDef ?? -1;
       return out;
     }
   };

@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 3;
+export const PROTOCOL_VERSION = 4;
 export const TICK_RATE = 30;
 export const DT = 1 / TICK_RATE;
 export const SNAPSHOT_EVERY = 2;
@@ -14,8 +14,8 @@ export const TEAM_COLORS = ['#3ca7d8', '#e8464f', '#3fc77a', '#a868e0'];
 export const FFA_COLOR = '#ff4d61';
 export const SELF_COLOR = '#38a3ff';
 
-export const MAX_LEVEL = 45;
-export const TIER_LEVELS = [1, 15, 30, 45];
+export const MAX_LEVEL = 60;
+export const TIER_LEVELS = [1, 15, 30, 45, 60];
 export const STAT_NAMES = ['Regen', 'Max Health', 'Body Damage', 'Bullet Speed', 'Bullet Pen', 'Bullet Damage', 'Reload', 'Move Speed'];
 export const STAT_MAX = 7;
 
@@ -48,7 +48,9 @@ export const MODES = {
   maze_team: { name: 'Maze Teams', teams: true, desc: 'Two teams, bases in opposite corners of a maze.' },
   labyrinth: { name: 'Labyrinth', teams: false, desc: 'Procedural maze. Secrets, elites and boss chambers.' },
   labyrinth_team: { name: 'Labyrinth Teams', teams: true, desc: 'Procedural maze, two teams.' },
-  sandbox: { name: 'Sandbox', teams: false, desc: 'Pick any of the 1,000+ tanks and summon bosses.' }
+  battle: { name: 'Battle', teams: false, battle: true, desc: 'No leveling. Spawn at level 60 with any tank you like and fight.' },
+  battle_team: { name: 'Team Battle', teams: true, battle: true, desc: 'No leveling, two teams. Pick any tank and fight.' },
+  sandbox: { name: 'Sandbox', teams: false, desc: 'Pick any tank, jump to max level and summon bosses.' }
 };
 
 export const THEMES = ['classic', 'crystal', 'industrial', 'overgrown', 'void', 'endless'];

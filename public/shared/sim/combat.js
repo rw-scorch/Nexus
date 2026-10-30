@@ -127,6 +127,35 @@ export function isTarget(e) {
   return e.type === 'tank' || e.type === 'shape' || e.type === 'mob' || e.type === 'boss' || e.type === 'part' || e.type === 'struct';
 }
 
+function updateTurrets(world, t, dt, rot) {
+  const d = t.def;
+  if (!d.turrets.length) return;
+  if (!t.turAng || t.turAng.length !== d.turrets.length) { t.turAng = d.turrets.map(u => rot + u.a * DEG); t.turTgt = d.turrets.map(() => 0); t.turOn = d.turrets.map(() => false); }
+  const ca = Math.cos(rot), sa = Math.sin(rot);
+  for (let i = 0; i < d.turrets.length; i++) {
+    const u = d.turrets[i];
+    const cx = t.x + (u.x * ca - u.y * sa) * t.r, cy = t.y + (u.x * sa + u.y * ca) * t.r;
+    const baseA = rot + u.a * DEG;
+    if (world.tick % 6 === (t.id + i) % 6) {
+      const id = nearestTarget(world, t, cx, cy, 640 * t.fov, true);
+      const tg = id ? world.get(id) : null;
+      t.turTgt[i] = tg && (u.arc >= 360 || Math.abs(wrap(Math.atan2(tg.y - cy, tg.x - cx) - baseA)) <= u.arc * DEG / 2) ? id : 0;
+    }
+    const tg = t.turTgt[i] ? world.get(t.turTgt[i]) : null;
+    if (tg) {
+      t.turAng[i] = approachAngle(t.turAng[i], leadAngle(cx, cy, tg, BASE.speed), 9 * dt);
+      t.turOn[i] = true;
+    } else if (t.firing && u.arc >= 360) {
+      t.turAng[i] = approachAngle(t.turAng[i], Math.atan2(t.aimY - cy, t.aimX - cx), 9 * dt);
+      t.turOn[i] = true;
+    } else {
+      t.turAng[i] = approachAngle(t.turAng[i], baseA, 4 * dt);
+      t.turOn[i] = false;
+    }
+    u._cx = cx; u._cy = cy;
+  }
+}
+
 export function updateTankWeapons(world, t, dt) {
   const d = t.def;
   const guns = t.swapped && d.alt ? d.alt : d.guns;
@@ -138,17 +167,20 @@ export function updateTankWeapons(world, t, dt) {
   if (s.overchargeUntil > now) mul *= 0.7;
   if (world.global.overchargeUntil > now) mul *= 0.75;
   const st = gunStatsFor(t);
-  const spin = d.spin ? d.spin * now : 0;
-  const ca = Math.cos(t.angle), sa = Math.sin(t.angle);
+  const rot = t.angle + (d.spin ? d.spin * now : 0);
+  updateTurrets(world, t, dt, rot);
+  const ca = Math.cos(rot), sa = Math.sin(rot);
+  const stunned = s.stunUntil > now;
   let fired = false;
   for (let i = 0; i < guns.length; i++) {
     const g = guns[i];
+    if (g.deco) continue;
     const base = BASE.reload * g.r * mul;
     if (g.k === 'drone' || g.k === 'minion') {
       if (t.droneCount[i] < g.max + (t.reclaimBonus && i === firstDroneGun(guns) ? t.reclaimBonus : 0)) {
         t.reload[i] -= dt;
         if (t.reload[i] <= 0) {
-          const ang = t.angle + g.a * DEG + spin;
+          const ang = rot + g.a * DEG;
           const mxp = t.x + (g.x * ca - g.y * sa) * t.r, myp = t.y + (g.x * sa + g.y * ca) * t.r;
           fireGun(world, t, g, i, ang, mxp + Math.cos(ang) * g.len * t.r, myp + Math.sin(ang) * g.len * t.r, st);
           t.droneCount[i]++;
@@ -157,28 +189,22 @@ export function updateTankWeapons(world, t, dt) {
       }
       continue;
     }
-    let ang;
-    let shooting = t.firing;
-    let mx = t.x + (g.x * ca - g.y * sa) * t.r, my = t.y + (g.x * sa + g.y * ca) * t.r;
-    if (g.auto) {
-      if (world.tick % 6 === (t.id + i) % 6 || !t.autoTargets) {
-        t.autoTargets = t.autoTargets || [];
-        t.autoTargets[i] = nearestTarget(world, t, mx, my, 640 * t.fov, true);
-      }
-      const tg = t.autoTargets && t.autoTargets[i] ? world.get(t.autoTargets[i]) : null;
-      if (tg) {
-        const tAng = leadAngle(mx, my, tg, BASE.speed * g.sp * t.bSpeed);
-        t.autoAng[i] = approachAngle(t.autoAng[i] || t.angle, tAng, 9 * dt);
-        shooting = true;
-      } else {
-        t.autoAng[i] = approachAngle(t.autoAng[i] || t.angle, t.angle, 4 * dt);
-        shooting = false;
-      }
-      ang = t.autoAng[i];
+    let ang, mx, my, shooting;
+    if (g.auto && g.t >= 0 && d.turrets[g.t]) {
+      const u = d.turrets[g.t];
+      const ta = t.turAng[g.t];
+      const tc = Math.cos(ta), ts = Math.sin(ta);
+      mx = u._cx + (g.x * tc - g.y * ts) * t.r;
+      my = u._cy + (g.x * ts + g.y * tc) * t.r;
+      ang = ta + g.a * DEG;
+      shooting = t.turOn[g.t];
     } else {
-      ang = t.angle + g.a * DEG + spin;
+      mx = t.x + (g.x * ca - g.y * sa) * t.r;
+      my = t.y + (g.x * sa + g.y * ca) * t.r;
+      ang = rot + g.a * DEG;
+      shooting = t.firing || !!g.af;
     }
-    if (shooting && !(s.stunUntil > now)) {
+    if (shooting && !stunned) {
       t.reload[i] -= dt;
       let guard = 0;
       while (t.reload[i] <= 0 && guard++ < 3) {
@@ -189,8 +215,7 @@ export function updateTankWeapons(world, t, dt) {
         const kick = g.rec * 16 / (t.mass || 1);
         t.vx -= Math.cos(ang) * kick;
         t.vy -= Math.sin(ang) * kick;
-        fired = true;
-        if (!g.auto) world.addFx('muzzle', Math.round(sx), Math.round(sy), t.id);
+        if (!g.auto) { fired = true; world.addFx('muzzle', Math.round(sx), Math.round(sy), t.id); }
       }
     } else {
       t.reload[i] = Math.max(t.reload[i] - dt, g.d * base);
@@ -304,7 +329,13 @@ export function updateBullet(world, b, dt) {
         world.addBullet({ kind: 'bullet', x: b.x + ca * b.r * 1.5, y: b.y + sa * b.r * 1.5, vx: ca * 520, vy: sa * 520, r: b.r * 0.45, dmg: b.minionGun.dmg, hp: 8, life: 1.1, team: b.team, ownerId: b.ownerId, fx: b.fx });
       }
     }
-    steer(b, tx, ty, b.maxSpeed, dt, 7);
+    if (b.fx.orbit && owner.type === 'tank') {
+      const rad = owner.r * (mode === 'aim' ? 4.2 : mode === 'repel' ? 1.8 : 2.8);
+      const a = now * 2.4 + (b.gunIdx || 0) * 1.7;
+      tx = owner.x + Math.cos(a) * rad; ty = owner.y + Math.sin(a) * rad;
+    }
+    if (b.fx.armed) armedShot(world, b, dt);
+    steer(b, tx, ty, b.maxSpeed, dt, b.fx.orbit ? 10 : 7);
     if (k === 'drone') b.angle = Math.atan2(b.vy, b.vx);
     world.collideWalls(b);
     return;
@@ -312,6 +343,24 @@ export function updateBullet(world, b, dt) {
   if (k === 'trap') {
     const f = Math.exp(-3.4 * dt);
     b.vx *= f; b.vy *= f;
+    if (b.fx.armed) armedShot(world, b, dt);
+  }
+  if (b.fx.wave) {
+    const sp = Math.hypot(b.vx, b.vy) || 1;
+    const ph = Math.cos((now - b.born) * 9) * 9 * b.fx.wave * dt;
+    const nx = -b.vy / sp, ny = b.vx / sp;
+    b.x += nx * ph * 60; b.y += ny * ph * 60;
+  }
+  if (b.fx.missile && owner) {
+    b.mcd = (b.mcd ?? 0.12) - dt;
+    if (b.mcd <= 0) {
+      b.mcd = b.fx.missile > 1 ? 0.09 : 0.16;
+      const base = Math.atan2(b.vy, b.vx);
+      const sides = b.fx.missile > 1 ? [base + now * 9] : [base + Math.PI / 2, base - Math.PI / 2];
+      for (const a of sides) world.addBullet({ kind: 'bullet', isFrag: true, x: b.x, y: b.y, vx: Math.cos(a) * 380, vy: Math.sin(a) * 380, r: Math.max(3, b.r * 0.45), dmg: b.dmg * 0.18, hp: 4, life: 0.45, team: b.team, ownerId: b.ownerId, fx: {} });
+      const back = base + Math.PI;
+      b.vx -= Math.cos(back) * 14; b.vy -= Math.sin(back) * 14;
+    }
   }
   if (k === 'swarm') {
     if (world.tick % 5 === b.id % 5) b.autoT = nearestTarget(world, b, b.x, b.y, 380, true, false);
@@ -339,6 +388,18 @@ export function updateBullet(world, b, dt) {
     if (b.hits) b.hits.clear();
   }
   if (b.angle !== undefined && (k === 'swarm' || b.fx.home)) b.angle = Math.atan2(b.vy, b.vx);
+}
+
+function armedShot(world, b, dt) {
+  b.acd = (b.acd ?? 0.8) - dt;
+  if (b.acd > 0) return;
+  b.acd = 0.9;
+  if (world.tick % 1 !== 0) return;
+  const id = nearestTarget(world, b, b.x, b.y, 380, true, false);
+  const tg = id ? world.get(id) : null;
+  if (!tg) return;
+  const a = Math.atan2(tg.y - b.y, tg.x - b.x);
+  world.addBullet({ kind: 'bullet', isFrag: true, x: b.x + Math.cos(a) * b.r, y: b.y + Math.sin(a) * b.r, vx: Math.cos(a) * 520, vy: Math.sin(a) * 520, r: Math.max(3, b.r * 0.4), dmg: b.dmg * 0.35, hp: 5, life: 0.8, team: b.team, ownerId: b.ownerId, fx: {} });
 }
 
 function steer(b, tx, ty, speed, dt, k) {

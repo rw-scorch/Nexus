@@ -90,7 +90,6 @@ export class Room {
       case 'i': p.input = sanitizeInput(m); break;
       case 'u': if (t) w.upgradeStat(t, m.s | 0); break;
       case 'e': if (t && Number.isInteger(m.idx)) w.evolve(t, m.idx); break;
-      case 'd': if (t && typeof m.k === 'string') w.logic.applyDoctrine(t, m.k); break;
       case 'p': case 'lvl': case 'sb': w.logic.sandboxCommand(p, m); break;
       case 'tu': if (typeof m.k === 'string') w.logic.teamUpgrade(p, m.k); break;
       case 'don': w.logic.donate(p); break;
@@ -128,6 +127,7 @@ export class Room {
     if (bot && w.players.size >= Math.max(this.settings.bots, 1)) w.removePlayer(bot.pid);
     const p = w.addPlayer({ name, token: token || `t${Math.random().toString(36).slice(2, 12)}`, isBot: false });
     c.pid = p.pid;
+    if (Number.isInteger(m.tank) && w.logic.pickTank) w.logic.pickTank(p, { idx: m.tank });
     this.emptySince = 0;
     this.send(c, welcomeMessage(w, p, this));
     w.emit({ k: 'announce', text: `${p.name} joined`, tone: 'info' });

@@ -40,6 +40,7 @@ function bodyPath(ctx, kind, r, rot) {
     case 'square': ctx.beginPath(); ctx.rect(-r * 0.88, -r * 0.88, r * 1.76, r * 1.76); break;
     case 'hex': poly(ctx, 0, 0, r * 1.02, 6, rot); break;
     case 'tri': poly(ctx, 0, 0, r * 1.15, 3, 0); break;
+    case 'pent': poly(ctx, 0, 0, r * 1.05, 5, 0); break;
     case 'octagon': poly(ctx, 0, 0, r * 1.02, 8, Math.PI / 8); break;
     case 'star': star(ctx, 0, 0, r * 1.12, 6, 0.78, 0); break;
     default: ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI * 2);
@@ -51,26 +52,49 @@ function drawBarrel(ctx, g, r, ang, mx, my) {
   ctx.translate(mx, my);
   ctx.rotate(ang);
   const L = g.len * r, W = g.w * r;
+  const asp = g.asp || 1;
+  const wb = asp < 0 ? W * -asp : W;
+  const wm = asp > 0 ? W * asp : W;
   ctx.beginPath();
-  if (g.k === 'drone' || g.k === 'minion' || g.k === 'swarm') {
-    ctx.moveTo(0, -W * 0.62); ctx.lineTo(L, -W); ctx.lineTo(L, W); ctx.lineTo(0, W * 0.62);
-  } else if (g.k === 'trap') {
-    ctx.rect(0, -W * 0.8, L * 0.72, W * 1.6);
-    ctx.moveTo(L * 0.72, -W * 0.8); ctx.lineTo(L, -W * 1.15); ctx.lineTo(L, W * 1.15); ctx.lineTo(L * 0.72, W * 0.8);
-  } else if (g.k === 'beam') {
-    ctx.rect(0, -W * 0.75, L, W * 1.5);
-  } else if (g.k === 'shell') {
-    ctx.moveTo(0, -W * 0.9); ctx.lineTo(L * 0.8, -W * 0.9); ctx.lineTo(L, -W * 1.05); ctx.lineTo(L, W * 1.05); ctx.lineTo(L * 0.8, W * 0.9); ctx.lineTo(0, W * 0.9);
-  } else {
-    ctx.rect(0, -W, L, W * 2);
-  }
+  ctx.moveTo(0, -wb); ctx.lineTo(L, -wm); ctx.lineTo(L, wm); ctx.lineTo(0, wb);
   ctx.closePath();
-  fillStroke(ctx, BARREL, BARREL_EDGE, Math.max(1.5, r * 0.09));
-  if (g.k === 'beam') { ctx.fillStyle = '#9ef0ff'; ctx.fillRect(L * 0.82, -W * 0.45, L * 0.18, W * 0.9); }
+  ctx.lineJoin = 'round';
+  fillStroke(ctx, BARREL, BARREL_EDGE, Math.max(1.2, r * 0.075));
+  if (g.k === 'beam') { ctx.fillStyle = '#7fe3ff'; ctx.fillRect(L * 0.8, -wm * 0.5, L * 0.2, wm); }
   const fx = g.fx || {};
-  const tip = fx.heal ? '#6fe36b' : fx.explode ? '#ff9a3d' : fx.split ? '#ff6bb5' : fx.chain ? '#9ee8ff' : fx.home ? '#38e0ff' : fx.bounce ? '#ffd84d' : fx.pierce ? '#ffffff' : fx.siege ? '#c46bff' : fx.intercept ? '#a0ffcf' : fx.pull ? '#9b6bff' : fx.reverse ? '#ff8fd8' : null;
-  if (tip) { ctx.fillStyle = tip; ctx.fillRect(L * 0.78, -W * 0.9, L * 0.14, W * 1.8); }
+  const tip = fx.heal ? '#5fd36b' : fx.explode ? '#ff9a3d' : fx.chain ? '#5cc8ff' : fx.pull ? '#9b6bff' : fx.bounce ? '#f2c230' : fx.intercept ? '#4fd1a5' : fx.pierce && g.k !== 'beam' ? '#ffffff' : null;
+  if (tip && !g.deco) { ctx.fillStyle = tip; ctx.fillRect(L * 0.82, -wm * 0.85, L * 0.12, wm * 1.7); }
   ctx.restore();
+}
+
+function polyPath(ctx, sides, rad, rot) {
+  if (!sides) { ctx.beginPath(); ctx.arc(0, 0, rad, 0, Math.PI * 2); return; }
+  poly(ctx, 0, 0, rad, sides, rot);
+}
+
+function drawDecos(ctx, def, r, rot, time, layer, color) {
+  for (const dc of def.decos || []) {
+    if ((dc.layer || 0) !== layer) continue;
+    ctx.save();
+    const cx = (dc.x * Math.cos(rot) - dc.y * Math.sin(rot)) * r, cy = (dc.x * Math.sin(rot) + dc.y * Math.cos(rot)) * r;
+    ctx.translate(cx, cy);
+    polyPath(ctx, dc.sides, dc.s * r * (dc.sides === 3 ? 1.5 : dc.sides === 4 ? 1.2 : 1), rot + (dc.a || 0) * DEG + time * (dc.spin || 0));
+    const fill = dc.dark ? '#5a5a5f' : layer ? BARREL : shade(color, -0.12);
+    fillStroke(ctx, fill, dc.dark ? '#3f3f44' : BARREL_EDGE, Math.max(1.2, r * 0.075));
+    ctx.restore();
+  }
+}
+
+function drawTurret(ctx, def, ti, r, rot, aim, guns) {
+  const u = def.turrets[ti];
+  const cx = (u.x * Math.cos(rot) - u.y * Math.sin(rot)) * r, cy = (u.x * Math.sin(rot) + u.y * Math.cos(rot)) * r;
+  for (const g of guns) {
+    if (g.t !== ti) continue;
+    const gx = cx + (g.x * Math.cos(aim) - g.y * Math.sin(aim)) * r, gy = cy + (g.x * Math.sin(aim) + g.y * Math.cos(aim)) * r;
+    drawBarrel(ctx, g, r, aim + g.a * DEG, gx, gy);
+  }
+  ctx.beginPath(); ctx.arc(cx, cy, u.s * r, 0, Math.PI * 2);
+  fillStroke(ctx, BARREL, BARREL_EDGE, Math.max(1.2, r * 0.075));
 }
 
 export function drawTank(ctx, def, o) {
@@ -79,42 +103,27 @@ export function drawTank(ctx, def, o) {
   ctx.save();
   ctx.translate(x, y);
   if (o.alpha !== undefined) ctx.globalAlpha *= o.alpha;
-  const ca = Math.cos(angle), sa = Math.sin(angle);
-  const spin = def.spin ? def.spin * time : 0;
-  if (def.body === 'spike' || (def.bodyFx && def.bodyFx.blast)) {
-    ctx.save();
-    ctx.rotate(time * 2.5);
-    star(ctx, 0, 0, r * 1.32, def.body === 'spike' ? 6 : 8, 0.72, 0);
-    fillStroke(ctx, '#3a3f4a', '#23262d', Math.max(1.5, r * 0.08));
-    ctx.restore();
-  }
-  for (let i = 0; i < guns.length; i++) {
-    const g = guns[i];
-    if (g.auto) continue;
+  const rot = angle + (def.spin ? def.spin * time : 0);
+  const ca = Math.cos(rot), sa = Math.sin(rot);
+  const tAng = i => (o.turretAngles && o.turretAngles[i] !== undefined ? o.turretAngles[i] : rot + def.turrets[i].a * DEG + (o.idleSpin ? time * 0.8 : 0));
+  drawDecos(ctx, def, r, rot, time, 0, color);
+  for (let i = 0; i < def.turrets.length; i++) if (!def.turrets[i].layer) drawTurret(ctx, def, i, r, rot, tAng(i), guns);
+  for (const g of guns) {
+    if (g.auto && g.t >= 0) continue;
     const mx = (g.x * ca - g.y * sa) * r, my = (g.x * sa + g.y * ca) * r;
-    drawBarrel(ctx, g, r, angle + g.a * DEG + spin, mx, my);
+    drawBarrel(ctx, g, r, g.auto ? rot : rot + g.a * DEG, mx, my);
   }
   ctx.save();
-  ctx.rotate(def.body === 'tri' || def.body === 'square' ? angle : (def.body === 'hex' ? time * 0.4 : 0));
-  bodyPath(ctx, def.body === 'spike' ? 'circle' : def.body, r, 0);
+  ctx.rotate(def.body === 'circle' ? 0 : rot);
+  bodyPath(ctx, def.body, r, 0);
   const fill = o.flash ? shade(color, 0.55) : color;
-  fillStroke(ctx, fill, shade(color, -0.38), Math.max(2, r * 0.13));
+  fillStroke(ctx, fill, shade(color, -0.3), Math.max(1.8, r * 0.1));
   ctx.restore();
-  for (let i = 0; i < guns.length; i++) {
-    const g = guns[i];
-    if (!g.auto) continue;
-    const mx = (g.x * ca - g.y * sa) * r, my = (g.x * sa + g.y * ca) * r;
-    const aa = o.autoAngles && o.autoAngles[i] !== undefined ? o.autoAngles[i] : angle;
-    drawBarrel(ctx, g, r * 0.9, aa, mx, my);
-    ctx.beginPath(); ctx.arc(mx, my, r * 0.36, 0, Math.PI * 2);
-    fillStroke(ctx, BARREL, BARREL_EDGE, Math.max(1.2, r * 0.07));
-  }
+  for (let i = 0; i < def.turrets.length; i++) if (def.turrets[i].layer) drawTurret(ctx, def, i, r, rot, tAng(i), guns);
+  drawDecos(ctx, def, r, rot, time, 1, color);
   if (def.bodyFx && def.bodyFx.armor) {
     ctx.beginPath(); ctx.arc(0, 0, r * 0.55, 0, Math.PI * 2);
     ctx.lineWidth = Math.max(1.5, r * 0.1); ctx.strokeStyle = shade(color, -0.25); ctx.stroke();
-  }
-  if (def.bodyFx && def.bodyFx.magnet) {
-    ctx.beginPath(); ctx.arc(0, 0, r * 0.45, 0, Math.PI * 2); ctx.fillStyle = shade(color, -0.3); ctx.fill();
   }
   ctx.restore();
 }
@@ -333,8 +342,20 @@ export function previewTank(canvas, def, color = '#38a3ff', time = 0) {
   if (canvas.width !== w * dpr) { canvas.width = w * dpr; canvas.height = h * dpr; }
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, w, h);
-  let reach = 1.3;
-  for (const g of def.guns) reach = Math.max(reach, Math.hypot(g.x, g.y) + g.len + 0.2);
-  const r = Math.min(w, h) / 2 / reach * 0.92;
-  drawTank(ctx, def, { x: w / 2, y: h / 2, angle: -Math.PI / 4, r, color, time });
+  const r = Math.min(w, h) / 2 / tankReach(def) * 0.9;
+  drawTank(ctx, def, { x: w / 2, y: h / 2, angle: -Math.PI / 4, r, color, time, idleSpin: false });
+}
+
+export function tankReach(def) {
+  if (def._reach) return def._reach;
+  let reach = 1.15;
+  for (const g of def.guns) {
+    if (g.auto && g.t >= 0) {
+      const u = def.turrets[g.t];
+      reach = Math.max(reach, Math.hypot(u.x, u.y) + Math.hypot(g.x, g.y) + g.len + 0.1);
+    } else reach = Math.max(reach, Math.hypot(g.x, g.y) + g.len + 0.1);
+  }
+  for (const d of def.decos || []) reach = Math.max(reach, Math.hypot(d.x, d.y) + d.s * 1.2);
+  def._reach = reach;
+  return reach;
 }

@@ -34,6 +34,19 @@ export async function checkHealth(base, timeout = 5000) {
   } finally { clearTimeout(timer); }
 }
 
+export async function roomCounts(base, codes, timeout = 5000) {
+  if (!base || !codes.length) return {};
+  const ctl = new AbortController();
+  const timer = setTimeout(() => ctl.abort(), timeout);
+  try {
+    const r = await fetch(`${httpUrl(base)}/rooms?codes=${encodeURIComponent(codes.join(','))}`, { signal: ctl.signal, cache: 'no-store' });
+    if (!r.ok) return {};
+    return await r.json();
+  } catch (e) {
+    return {};
+  } finally { clearTimeout(timer); }
+}
+
 export class NetClient {
   constructor(url, h) {
     this.url = url;

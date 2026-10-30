@@ -53,6 +53,18 @@ export default {
     const url = new URL(request.url);
     if (request.method === 'OPTIONS') return new Response(null, { status: 204, headers: CORS });
     if (url.pathname === '/health') return json({ ok: true, protocol: PROTOCOL_VERSION, platform: 'cloudflare' });
+    if (url.pathname === '/rooms') {
+      const codes = (url.searchParams.get('codes') || '').split(',').filter(c => /^[a-z0-9_-]{3,24}$/i.test(c)).slice(0, 12);
+      const out = {};
+      await Promise.all(codes.map(async code => {
+        try {
+          const r = await env.ROOMS.get(env.ROOMS.idFromName(code)).fetch(`https://room/status?room=${code}`);
+          const st = await r.json();
+          out[code] = st.idle ? 0 : st.players || 0;
+        } catch (e) { out[code] = 0; }
+      }));
+      return json(out);
+    }
     if (url.pathname === '/ws') {
       const code = url.searchParams.get('room') || '';
       if (!/^[a-z0-9_-]{3,24}$/i.test(code)) return new Response('Invalid room code', { status: 400 });
