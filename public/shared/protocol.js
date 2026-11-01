@@ -12,7 +12,7 @@ const r1 = v => Math.round(v);
 const ang = v => Math.round((v || 0) * 100);
 const pct = (a, b) => Math.max(0, Math.min(100, Math.round((a / (b || 1)) * 100)));
 
-export const CLIENT_TYPES = new Set(['j', 'i', 'u', 'e', 'p', 'lvl', 'sb', 'tu', 'don', 'ping', 'r']);
+export const CLIENT_TYPES = new Set(['j', 'i', 'u', 'e', 'p', 'lvl', 'sb', 'tu', 'don', 'ping', 'r', 'ct']);
 
 export function sanitizeInput(m) {
   const num = (v, lo, hi, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
@@ -25,7 +25,7 @@ export function sanitizeInput(m) {
 
 export function welcomeMessage(world, p, room) {
   return {
-    t: 'w', protocol: PROTOCOL_VERSION, pid: p.pid, room: room.code, mode: world.mode, settings: world.settings,
+    t: 'w', protocol: PROTOCOL_VERSION, pid: p.pid, room: room.code, mode: world.mode, settings: { ...world.settings, customMap: world.settings.customMap ? 1 : 0 },
     map: { w: world.w, h: world.h, tiles: encodeTiles(world.tiles), theme: world.map.theme, kind: world.map.kind, regions: world.map.regions, seed: world.seed, conveyors: [...world.map.conveyors.entries()] },
     token: p.token, team: p.team
   };
@@ -44,10 +44,10 @@ function encodeEnt(e, world, viewer) {
       if (s.overdriveUntil > now) f |= 32;
       if (s.dashUntil > now) f |= 64;
       if (now - e.lastHurt < 0.12) f |= 128;
-      return [ENT.TANK, e.id, r1(e.x), r1(e.y), ang(e.angle), r1(e.r), e.team, pct(e.hp, e.maxHp), e.defIdx, f, e.level, e.swapped ? 1 : 0, r1(e.vx), r1(e.vy), e.turAng && e.def.turrets.length ? e.turAng.map(ang) : 0];
+      return [ENT.TANK, e.id, r1(e.x), r1(e.y), ang(e.angle), r1(e.r), e.team, pct(e.hp, e.maxHp), e.defIdx, f, e.level, e.swapped ? 1 : 0, r1(e.vx), r1(e.vy), e.turAng && e.def.turrets.length ? e.turAng.map(ang) : 0, e.player && e.player.cos ? e.player.cos.skin : 0];
     }
     case 'bullet':
-      return [ENT.BULLET, e.id, r1(e.x), r1(e.y), r1(e.r), e.team, PROJECTILE_KINDS[e.kind] ? PROJECTILE_KINDS[e.kind].code : 0, ang(e.angle !== undefined ? e.angle : Math.atan2(e.vy, e.vx)), e.fx.heal ? 1 : e.fx.explode ? 2 : e.fx.home ? 3 : e.fx.chain ? 4 : e.fx.bounce ? 5 : 0, e.shapeDrone ? 1 : 0];
+      return [ENT.BULLET, e.id, r1(e.x), r1(e.y), r1(e.r), e.team, PROJECTILE_KINDS[e.kind] ? PROJECTILE_KINDS[e.kind].code : 0, ang(e.angle !== undefined ? e.angle : Math.atan2(e.vy, e.vx)), e.fx.heal ? 1 : e.fx.explode ? 2 : e.fx.home ? 3 : e.fx.chain ? 4 : e.fx.bounce ? 5 : 0, e.shapeDrone ? 1 : 0, e.trail || 0];
     case 'shape':
       return [ENT.SHAPE, e.id, r1(e.x), r1(e.y), ang(e.angle), r1(e.r), SHAPE_IDX[e.kind], pct(e.hp, e.maxHp), world.time - e.lastHurt < 0.12 ? 1 : 0];
     case 'mob':
@@ -152,7 +152,7 @@ export function sharedExtras(world, tickOnce) {
   if (world.fx.length) out.fx = world.fx.slice();
   if (tickOnce) {
     const players = [...world.players.values()];
-    out.pl = players.map(p => [p.pid, p.name, p.team, p.isBot ? 1 : 0, p.score, p.kills, p.deaths, p.tankId || 0, (world.tankOf(p) || {}).defIdx ?? -1, p.connected ? 1 : 0, p.bossKills]);
+    out.pl = players.map(p => [p.pid, p.name, p.team, p.isBot ? 1 : 0, p.score, p.kills, p.deaths, p.tankId || 0, (world.tankOf(p) || {}).defIdx ?? -1, p.connected ? 1 : 0, p.bossKills, p.admin ? 1 : 0, p.accLevel || 0]);
     const mm = [];
     for (const e of world.ents) {
       if (e.dead) continue;

@@ -11,7 +11,11 @@ const DEFAULTS = {
   ach: {},
   counters: {},
   seen: {},
-  battleTank: ''
+  battleTank: '',
+  session: '',
+  user: null,
+  designs: [],
+  localUnlocks: []
 };
 
 function load() {
@@ -22,7 +26,7 @@ function load() {
     return {
       settings: { ...DEFAULTS.settings, ...(d.settings || {}) },
       stats: { ...DEFAULTS.stats, ...(d.stats || {}) },
-      ach: d.ach || {}, counters: d.counters || {}, seen: d.seen || {}, battleTank: d.battleTank || ''
+      ach: d.ach || {}, counters: d.counters || {}, seen: d.seen || {}, battleTank: d.battleTank || '', session: d.session || '', user: d.user || null, designs: Array.isArray(d.designs) ? d.designs : [], localUnlocks: Array.isArray(d.localUnlocks) ? d.localUnlocks : []
     };
   } catch (e) {
     return structuredClone(DEFAULTS);

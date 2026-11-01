@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { TANKS, TANKS_BY_ID, TANK_FAMILIES, validateRegistry, ABILITIES } from '../public/shared/tank-registry.js';
+import { TANKS, PUBLIC_TANKS, TANKS_BY_ID, TANK_FAMILIES, validateRegistry, ABILITIES } from '../public/shared/tank-registry.js';
 import { PROJECTILE_KINDS } from '../public/shared/projectile-types.js';
 import { MAX_LEVEL } from '../public/shared/constants.js';
 import { quietWorld, openSpot, place, steps } from './helpers.js';
@@ -11,7 +11,7 @@ const firing = d => d.guns.filter(g => !g.deco && !g.auto);
 test('registry validates with no errors and every tank is reachable from Basic', () => {
   const v = validateRegistry();
   assert.equal(v.ok, true, v.errors.slice(0, 10).join('\n'));
-  assert.equal(v.reachableInNormalPlay, TANKS.length);
+  assert.equal(v.reachableInNormalPlay, PUBLIC_TANKS.length);
   assert.ok(v.arras >= 120, `arras tanks ${v.arras}`);
   assert.ok(v.armsRace >= 80, `arms race tanks ${v.armsRace}`);
   assert.ok(v.nexus >= 20, `nexus tanks ${v.nexus}`);
@@ -54,13 +54,14 @@ test('tanks are unique: at most a couple of arras tanks share a layout, original
   const sig = t => JSON.stringify([t.guns.map(g => [g.a, g.x, g.y, g.len, g.w, g.asp, g.k, g.auto, g.deco]), t.turrets, t.body, t.smasher, t.decos]);
   const seen = new Map();
   let dup = 0;
-  for (const t of TANKS) {
+  for (const t of PUBLIC_TANKS) {
     const s = sig(t);
     if (seen.has(s)) { dup++; assert.notEqual(t.src, 'nexus', `${t.id} copies ${seen.get(s)}`); }
     else seen.set(s, t.id);
   }
   assert.ok(dup <= 3, `${dup} duplicate layouts`);
   assert.equal(new Set(TANKS.map(t => t.id)).size, TANKS.length);
+  assert.equal(new Set(TANKS.filter(t => t.bossKey).map(t => JSON.stringify(t.guns.map(g => [g.a, g.k])))).size, 5);
 });
 
 test('levels: each upgrade raises the level, Arms Race sits at 60, cap is 60', () => {
@@ -77,7 +78,7 @@ test('every gun uses a registered projectile kind, stats are sane, abilities exi
   for (const t of TANKS) {
     for (const g of t.guns) assert.ok(PROJECTILE_KINDS[g.k], `${t.id} uses ${g.k}`);
     assert.ok(ABILITIES[t.ability], `${t.id} ability ${t.ability}`);
-    for (const [k, v] of Object.entries(t.stats)) assert.ok(Number.isFinite(v) && v > 0 && v < 6, `${t.id}.${k}=${v}`);
+    for (const [k, v] of Object.entries(t.stats)) assert.ok(Number.isFinite(v) && v > 0 && v < (t.bossKey ? 8 : 6), `${t.id}.${k}=${v}`);
   }
   assert.ok(TANK_FAMILIES.length >= 8);
 });
@@ -91,7 +92,8 @@ test('every tank can be selected and fires in the simulation', () => {
   const silent = [];
   for (const def of TANKS) {
     if (!def.guns.some(g => !g.deco)) continue;
-    assert.ok(w.logic.sandboxCommand(p, { t: 'p', idx: def.index }), `select ${def.id}`);
+    if (def.hidden) w.setTankDef(t, def);
+    else assert.ok(w.logic.sandboxCommand(p, { t: 'p', idx: def.index }), `select ${def.id}`);
     assert.equal(t.defIdx, def.index);
     place(w, t, spot.x, spot.y);
     t.level = 30; w.refreshTank(t, true);

@@ -1,5 +1,6 @@
 import { PROTOCOL_VERSION, MODES } from '../shared/constants.js';
-import { TANKS, TANKS_BY_ID, tankByIndex } from '../shared/tank-registry.js';
+import { TANKS, TANKS_BY_ID, tankByIndex, registerCustomTank } from '../shared/tank-registry.js';
+import { COSMETICS } from '../shared/cosmetics.js';
 import { BOSSES } from '../shared/boss-registry.js';
 import { Renderer } from './renderer.js';
 import { Hud } from './hud.js';
@@ -56,8 +57,9 @@ class App {
     return t;
   }
 
-  quickPlay(mode, name) {
-    this.session = { kind: 'online', mode, name, pubIndex: 1, code: `pub-${mode}-1`, settings: {} };
+  quickPlay(mode, name, code) {
+    const pub = !code || /^pub-/.test(code);
+    this.session = { kind: 'online', mode, name, pubIndex: pub ? 1 : 0, code: code || `pub-${mode}-1`, settings: {} };
     this.connect();
   }
 
@@ -84,7 +86,7 @@ class App {
     if (this.net) this.net.close();
     this.welcomed = false;
     const handlers = {
-      onOpen: () => this.send({ t: 'j', protocol: PROTOCOL_VERSION, name: s.name, token: this.tokenFor(s.code), mode: s.mode, settings: s.settings, tank: this.battleTankIndex() }),
+      onOpen: () => this.send({ t: 'j', protocol: PROTOCOL_VERSION, name: s.name, token: this.tokenFor(s.code), mode: s.mode, settings: s.settings, tank: this.battleTankIndex(), session: store.session || undefined }),
       onMessage: m => this.onMessage(m),
       onClose: (code, reason, wasOpen) => this.onClose(code, reason, wasOpen)
     };
@@ -113,7 +115,7 @@ class App {
     }
     if (this.expectedClose) { this.expectedClose = false; return; }
     this.stopPlaying();
-    const msg = reason && reason !== 'leave' ? `The server closed the connection (${reason}).` : wasOpen ? 'The connection to the game server was lost.' : `Could not reach the game server${reason ? `: ${reason}` : ''}. It may not be deployed yet, may be asleep, or the address may be wrong.`;
+    const msg = reason === 'not running' ? 'This game is not running any more. Only Battle, the featured mode and games started by an admin are open.' : reason && reason !== 'leave' ? `The server closed the connection (${reason}).` : wasOpen ? 'The connection to the game server was lost.' : `Could not reach the game server${reason ? `: ${reason}` : ''}. It may not be deployed yet, may be asleep, or the address may be wrong.`;
     this.menus.show('error', { message: msg, server: s.server });
   }
 
@@ -126,7 +128,7 @@ class App {
         if (m.code === 'full' && s && s.pubIndex && s.pubIndex < 6) {
           this.expectedClose = true;
           s.pubIndex++;
-          s.code = `pub-${s.mode}-${s.pubIndex}`;
+          s.code = s.code.replace(/-\d+$/, `-${s.pubIndex}`);
           return setTimeout(() => this.connect(), 100);
         }
         this.expectedClose = true;
@@ -160,10 +162,16 @@ class App {
       if (s.kind === 'online' && !m.room.startsWith('pub-')) this.hud.toast(`Room code: ${m.room}`, 'gold', 6000);
     } else this.hud.toast('Reconnected', 'good', 1500);
     this.state = 'playing';
+    if (store.pendingDesign && MODES[m.mode] && (MODES[m.mode].workshop || m.mode === 'sandbox')) {
+      const d = store.pendingDesign;
+      store.pendingDesign = null;
+      setTimeout(() => this.send({ t: 'ct', d }), 400);
+    }
   }
 
   onSnapshot(s) {
     if (this.state !== 'playing') return;
+    if (s.cd) for (const [idx, design] of s.cd) registerCustomTank(idx, design);
     if (s.tc) this.renderer.applyTiles(s.tc);
     this.renderer.pushSnapshot(s);
     this.snap = s;
@@ -198,6 +206,8 @@ class App {
         const killerTeam = e.at, victimTeam = e.bt;
         const col = t => (MODES[this.session.mode] && MODES[this.session.mode].teams) ? (t === 0 ? '#2f8fc4' : '#d8404a') : '#1d2433';
         this.hud.addFeed(`<span style="color:${col(killerTeam)}">${esc(e.a)}</span> <span class="muted">destroyed</span> <span style="color:${col(victimTeam)}">${esc(e.b)}</span>`);
+        if (e.x !== undefined) this.renderer.killEffect(e.kx || 0, e.x, e.y, e.r, e.kid === this.renderer.me.id ? '#00b2e1' : this.renderer.colorFor(e.at));
+        if (e.kid && e.kid === this.renderer.me.id) this.hud.killPop(e.b);
         break;
       }
       case 'announce': this.hud.toast(e.text, e.tone || 'info', e.tone === 'boss' ? 5000 : 3500); if (e.tone === 'bad' || e.tone === 'warn') sfx.warn(); break;
@@ -214,6 +224,8 @@ class App {
         if (e.ev === 'elite') st.elites++;
         if (e.ev === 'heal') st.heal += e.n || 0;
         if (e.ev === 'core') break;
+        if (e.ev === 'secret_tank') { store.localUnlocks = [...new Set([...(store.localUnlocks || []), e.tank])]; save(); this.hud.toast(store.session ? 'Secret tank unlocked on your account.' : 'Secret tank unlocked for this match. Log in to keep it.', 'gold', 6000); sfx.ach(); }
+        if (e.ev === 'became_boss') { this.hud.toast('You are the boss. Survive as long as you can.', 'boss', 5000); }
         const unlocked = record(e.ev, e.ev === 'heal' ? (e.n || 0) : 1, e.tank);
         for (const a of unlocked) { this.hud.toast(`Achievement unlocked: ${a.name}`, 'gold', 5000); sfx.ach(); }
         break;
@@ -237,6 +249,7 @@ class App {
     switch (a) {
       case 'stat': this.send({ t: 'u', s: Number(d.i) }); break;
       case 'evolve': this.evolve(Number(d.i)); break;
+      case 'build': this.hud.closeDrawer(); this.menus.show('builder', { back: 'game', clear: true, ingame: true }); break;
       case 'pick': {
         const idx = Number(d.i);
         if (!TANKS[idx]) break;
@@ -263,6 +276,8 @@ class App {
     const d = store.battleTank && TANKS_BY_ID.get(store.battleTank);
     return d ? d.index : undefined;
   }
+
+  spawnCustom(design) { this.send({ t: 'ct', d: design }); this.closeOverlay(); }
 
   sandboxPick(idx) { this.send({ t: 'p', idx }); this.closeOverlay(); }
 

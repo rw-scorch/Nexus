@@ -32,7 +32,7 @@ async function until(fn, ms = 3000) {
 }
 
 test('real multiplayer over WebSockets', async t => {
-  const server = await createServer({ port: 0, host: '127.0.0.1', quiet: true });
+  const server = await createServer({ port: 0, host: '127.0.0.1', quiet: true, openRooms: true, dataFile: null });
   const port = server.address().port;
   try {
     const code = 'mp-test';
@@ -132,7 +132,7 @@ test('real multiplayer over WebSockets', async t => {
 });
 
 test('invalid room codes are rejected at the HTTP upgrade', async () => {
-  const server = await createServer({ port: 0, host: '127.0.0.1', quiet: true });
+  const server = await createServer({ port: 0, host: '127.0.0.1', quiet: true, openRooms: true, dataFile: null });
   const port = server.address().port;
   try {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/ws?room=${encodeURIComponent('../../etc')}`);

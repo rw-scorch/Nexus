@@ -1,6 +1,8 @@
 import { validateGun, BASE } from './weapon-registry.js';
 import ARRAS from './data/arras-tanks.js';
-import { NEXUS_TANKS } from './nexus-tanks.js';
+import { NEXUS_TANKS, SECRET_TANKS, bossTankRaws } from './nexus-tanks.js';
+import { BOSSES } from './boss-registry.js';
+import { buildCustomRaw } from './custom-tanks.js';
 
 export const ABILITIES = {
   none: { name: 'None', cd: 0, desc: 'No active ability' },
@@ -60,10 +62,7 @@ function abilityOf(d) {
   return 'none';
 }
 
-function build() {
-  const list = [];
-  const byId = new Map();
-  const add = raw => {
+function normalize(raw) {
     const d = {
       id: raw.id,
       name: raw.name,
@@ -83,7 +82,9 @@ function build() {
       healer: raw.healer ? 1 : 0,
       tip: raw.tip || '',
       next: [...(raw.next || [])],
-      alt: null
+      alt: null,
+      hidden: raw.hidden ? 1 : 0,
+      bossKey: raw.bossKey || null
     };
     d.guns = (raw.guns || []).map(normGun);
     d.turrets = (raw.turrets || []).map(t => ({ x: t.x || 0, y: t.y || 0, s: t.s || 0.5, a: t.a || 0, arc: t.arc ?? 360, layer: t.layer ?? 1 }));
@@ -100,6 +101,14 @@ function build() {
     d.role = roleOf(d);
     d.rarity = d.src === 'nexus' ? (d.level >= 60 ? 'legendary' : 'epic') : RARITY_BY_LEVEL[d.level] || 'epic';
     d.req = { level: d.level };
+    return d;
+}
+
+function build() {
+  const list = [];
+  const byId = new Map();
+  const add = raw => {
+    const d = normalize(raw);
     d.index = list.length;
     list.push(d);
     byId.set(d.id, d);
@@ -113,12 +122,14 @@ function build() {
     }
   }
   for (const d of list) d.next = d.next.filter(id => byId.has(id) && byId.get(id).level > d.level);
+  for (const raw of SECRET_TANKS) add({ ...raw, src: 'secret', hidden: true, next: [] });
+  for (const raw of bossTankRaws(BOSSES)) add({ ...raw, src: 'boss', hidden: true, next: [] });
 
   const parents = new Map();
   for (const d of list) for (const n of d.next) { if (!parents.has(n)) parents.set(n, []); parents.get(n).push(d); }
   const primary = new Map([['basic', null]]);
   for (const d of list) {
-    if (d.id === 'basic') continue;
+    if (d.id === 'basic' || d.hidden) continue;
     const ps = (parents.get(d.id) || []).filter(p => p.level < d.level);
     let best = null;
     for (const p of ps) if (!best || p.level > best.level) best = p;
@@ -128,11 +139,12 @@ function build() {
     let cur = d.id;
     const seen = new Set();
     while (primary.get(cur) && primary.get(cur) !== 'basic' && !seen.has(cur)) { seen.add(cur); cur = primary.get(cur); }
-    d.family = d.id === 'basic' ? 'basic' : cur;
+    d.family = d.id === 'basic' ? 'basic' : d.hidden ? d.src : cur;
     d.parent = primary.get(d.id) || null;
     d.parents = (parents.get(d.id) || []).map(p => p.id);
   }
-  for (const d of list) d.familyName = byId.get(d.family) ? byId.get(d.family).name : d.family;
+  for (const d of list) d.familyName = byId.get(d.family) ? byId.get(d.family).name : d.family === 'boss' ? 'Boss' : d.family === 'secret' ? '???' : d.family;
+  for (const d of list) if (d.hidden) d.parent = null;
   for (const d of list) d.profile = powerProfile(d);
   const families = byId.get('basic').next.filter(id => list.some(t => t.family === id)).map(id => ({ key: id, name: byId.get(id).name, root: true }));
   return { list, byId, families };
@@ -167,7 +179,39 @@ export const TANKS_BY_ID = REG.byId;
 export const TANK_FAMILIES = REG.families;
 export const BASIC_INDEX = 0;
 
-export function tankByIndex(i) { return TANKS[i] || TANKS[0]; }
+export const PUBLIC_TANKS = TANKS.filter(t => !t.hidden);
+export const SECRET_IDS = SECRET_TANKS.map(t => t.id);
+export const BOSS_TANK_IDS = TANKS.filter(t => t.bossKey).map(t => t.id);
+export const CUSTOM_BASE = 100000;
+const CUSTOM = new Map();
+
+export function tankByIndex(i) { return TANKS[i] || CUSTOM.get(i) || TANKS[0]; }
+
+export function registerCustomTank(idx, design) {
+  if (CUSTOM.has(idx)) return CUSTOM.get(idx);
+  const raw = buildCustomRaw(design);
+  const d = normalize({ ...raw, src: 'custom', hidden: true, next: [] });
+  const live = d.guns.filter(g => !g.deco);
+  const dps = powerProfile(d).dps;
+  if (dps > 90) for (const g of live) g.dm = Math.round(g.dm * 90 / dps * 1000) / 1000;
+  d.index = idx;
+  d.custom = 1;
+  d.family = 'custom';
+  d.familyName = 'Custom';
+  d.parent = null;
+  d.parents = [];
+  d.profile = powerProfile(d);
+  CUSTOM.set(idx, d);
+  if (CUSTOM.size > 4000) CUSTOM.delete(CUSTOM.keys().next().value);
+  return d;
+}
+
+export function previewCustomTank(design) {
+  const d = normalize({ ...buildCustomRaw(design), src: 'custom', hidden: true, next: [] });
+  d.index = -1;
+  d.profile = powerProfile(d);
+  return d;
+}
 
 export function validateRegistry() {
   const errors = [];
@@ -188,6 +232,7 @@ export function validateRegistry() {
       else if (t.level <= d.level) errors.push(`${d.id}: evolution ${n} does not raise level`);
     }
     if (![1, 15, 30, 45, 60].includes(d.level)) errors.push(`${d.id}: odd level ${d.level}`);
+    if (d.hidden && TANKS.some(t => t.next.includes(d.id))) errors.push(`${d.id}: hidden tank is in the public tree`);
   }
   for (const raw of NEXUS_TANKS) for (const p of raw.parents) if (!TANKS_BY_ID.has(p)) errors.push(`${raw.id}: unknown parent ${p}`);
   const reachable = new Set();
@@ -198,9 +243,9 @@ export function validateRegistry() {
     reachable.add(id);
     stack.push(...TANKS_BY_ID.get(id).next);
   }
-  for (const d of TANKS) if (!reachable.has(d.id)) errors.push(`${d.id}: unreachable`);
+  for (const d of TANKS) if (!d.hidden && !reachable.has(d.id)) errors.push(`${d.id}: unreachable`);
   return {
-    ok: errors.length === 0, errors, count: TANKS.length,
+    ok: errors.length === 0, errors, count: PUBLIC_TANKS.length, hidden: TANKS.length - PUBLIC_TANKS.length,
     arras: TANKS.filter(t => t.src === 'arras').length, armsRace: TANKS.filter(t => t.src === 'ar').length, nexus: TANKS.filter(t => t.src === 'nexus').length,
     families: TANK_FAMILIES.length, reachableInNormalPlay: reachable.size
   };

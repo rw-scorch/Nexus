@@ -1,7 +1,7 @@
-import { TILE, DT, TEAM, TILES, isSolidTile, MAX_LEVEL, xpForLevel, levelForXp, DEFAULT_SETTINGS, MAX_BULLETS, MAX_MOBS, STAT_MAX } from '../constants.js';
+import { MODES, TILE, DT, TEAM, TILES, isSolidTile, MAX_LEVEL, xpForLevel, levelForXp, DEFAULT_SETTINGS, MAX_BULLETS, MAX_MOBS, STAT_MAX } from '../constants.js';
 import { makeRng } from '../rng.js';
 import { generateMap, tileIndexAt } from '../map-generator.js';
-import { TANKS, TANKS_BY_ID, tankByIndex, BASIC_INDEX } from '../tank-registry.js';
+import { TANKS, TANKS_BY_ID, tankByIndex, BASIC_INDEX, SECRET_IDS } from '../tank-registry.js';
 import { SHAPES, MOBS, STRUCTURES, PICKUPS } from '../entity-types.js';
 import { BASE } from '../weapon-registry.js';
 import { Grid } from './grid.js';
@@ -19,7 +19,7 @@ export class World {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     this.seed = seed >>> 0;
     this.rng = makeRng(this.seed ^ 0x9e3779b9);
-    this.map = generateMap(mode, this.seed, this.settings.theme);
+    this.map = generateMap(mode, this.seed, this.settings.theme, this.settings.customMap || null);
     this.tiles = this.map.tiles;
     this.w = this.map.w;
     this.h = this.map.h;
@@ -201,7 +201,8 @@ export class World {
       bossRewardMul: 1, lastKills: new Map(), respawnAt: 0, carryLevel: 1, defIdx: BASIC_INDEX,
       healDone: 0, docCdUntil: 0, connected: true, disconnectedAt: 0, brain: isBot ? { difficulty: this.settings.botDifficulty } : null,
       input: { mx: 0, my: 0, ax: 1, ay: 0, fire: false, alt: false, ability: false, seq: 0 },
-      deathX: 0, deathY: 0, killerId: 0, stats: { shots: 0, dmg: 0 }
+      deathX: 0, deathY: 0, killerId: 0, stats: { shots: 0, dmg: 0 },
+      cos: { skin: 0, trail: 0, kill: 0 }, unlocks: new Set(), admin: false, account: null, accLevel: 0
     };
     p.team = team !== null ? team : this.logic.assignTeam(p);
     this.players.set(pid, p);
@@ -226,7 +227,7 @@ export class World {
     const def = setup && setup.def ? setup.def : tankByIndex(BASIC_INDEX);
     const t = this.add({
       type: 'tank', player: p, pid: p.pid, name: p.name, team: this.logic.entityTeam(p), isBot: p.isBot,
-      x: pos.x, y: pos.y, r: 22, def, defIdx: def.index, level, xp: xpForLevel(level), stats: [0, 0, 0, 0, 0, 0, 0, 0],
+      x: pos.x, y: pos.y, r: 22, def, defIdx: def.index, level, xp: setup && setup.xp !== undefined ? setup.xp : xpForLevel(level), stats: [0, 0, 0, 0, 0, 0, 0, 0],
       reload: [], droneCount: [], abilityCd: 0, status: {}, swapped: false, lastHurt: -99, lastFire: -99,
       damageLog: new Map(), spawnProtect: this.time + 3, hp: 1, maxHp: 1, hitByBoss: new Set()
     });
@@ -242,7 +243,7 @@ export class World {
     const d = t.def, st = t.stats, L = t.level;
     const frac = t.maxHp > 0 ? t.hp / t.maxHp : 1;
     t.r = BASE.radius * d.stats.size * (1 + 0.009 * (L - 1));
-    t.maxHp = (100 + 3.4 * (L - 1)) * d.stats.hp * (1 + 0.14 * st[1]);
+    t.maxHp = (100 + 3.4 * (L - 1)) * d.stats.hp * (1 + 0.14 * st[1]) * (t.hpMul || 1);
     t.hp = fill ? t.maxHp : Math.max(1, frac * t.maxHp);
     t.regen = t.maxHp * (0.003 + 0.004 * st[0]);
     t.bodyDmg = d.stats.bodyDmg * (1 + 0.16 * st[2]);
@@ -270,6 +271,7 @@ export class World {
     t.swapped = false;
     t.reload = [];
     t.turAng = null;
+    t.hpMul = 1;
     t.player.defIdx = def.index;
     this.refreshTank(t);
     if (def.src === 'nexus' || def.level >= 60) this.emit({ k: 'personal', pid: t.pid, ev: 'rare_tank', tank: def.id });
@@ -304,7 +306,9 @@ export class World {
   evolve(t, idx) {
     if (!t || t.dead) return false;
     const target = TANKS[idx];
-    if (!target || !t.def.next.includes(target.id)) return false;
+    if (!target) return false;
+    const secret = target.hidden && SECRET_IDS.includes(target.id) && t.def.id === 'basic' && t.player.unlocks.has(target.id);
+    if (!secret && !t.def.next.includes(target.id)) return false;
     if (!this.meetsReq(t, target, false)) return false;
     this.setTankDef(t, target);
     return true;
@@ -320,6 +324,7 @@ export class World {
       const d = TANKS_BY_ID.get(id);
       if (d && this.meetsReq(t, d, false)) out.push(d.index);
     }
+    if (t.def.id === 'basic' && t.level >= 45) for (const id of SECRET_IDS) if (t.player.unlocks.has(id)) out.push(TANKS_BY_ID.get(id).index);
     return out;
   }
 
@@ -479,9 +484,14 @@ export class World {
       recent.push(this.time);
       kp.lastKills.set(p.pid, recent);
       const repeat = Math.pow(0.4, recent.length - 1);
-      let reward = Math.max(40, t.xp * 0.33) * repeat;
+      let reward = (MODES[this.mode] && (MODES[this.mode].battle || MODES[this.mode].workshop) ? 1000 : Math.max(40, t.xp * 0.33)) * repeat;
       if (this.global.bountyId === t.id) { reward *= 3; kp.cores++; this.emit({ k: 'announce', text: `${kp.name} claimed the bounty on ${p.name}`, tone: 'gold' }); this.global.bountyId = 0; }
       this.giveXp(killerTank, reward);
+      if (killerTank.def.id === 'basic' && killerTank.level >= 45 && !kp.unlocks.has('scorch')) {
+        kp.unlocks.add('scorch');
+        this.emit({ k: 'personal', pid: kp.pid, ev: 'secret_tank', tank: 'scorch' });
+        this.emit({ k: 'toast', pid: kp.pid, text: 'Something stirs. Look at your upgrades.', tone: 'gold' });
+      }
       this.emit({ k: 'personal', pid: kp.pid, ev: 'kill' });
       if (killerTank.def.role === 'Artillery') this.emit({ k: 'personal', pid: kp.pid, ev: 'kill_artillery' });
       if (killerTank.def.guns.some(g => g.k === 'drone' || g.k === 'minion' || g.k === 'swarm')) this.emit({ k: 'personal', pid: kp.pid, ev: 'kill_drone' });
@@ -498,7 +508,7 @@ export class World {
     } else if (rawKiller) {
       p.killerId = rawKiller.id || 0;
     }
-    this.emit({ k: 'kill', a: killerName, b: p.name, at: killerTank ? killerTank.team : -9, bt: t.team, ad: killerTank ? killerTank.defIdx : -1 });
+    this.emit({ k: 'kill', a: killerName, b: p.name, at: killerTank ? killerTank.team : -9, bt: t.team, ad: killerTank ? killerTank.defIdx : -1, x: Math.round(t.x), y: Math.round(t.y), r: Math.round(t.r), kx: killerTank && killerTank.player ? killerTank.player.cos.kill : 0, kid: killerTank ? killerTank.id : 0 });
   }
 
   rewardCore(p, n = 1) { p.cores += n; }

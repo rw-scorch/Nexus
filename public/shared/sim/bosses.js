@@ -11,11 +11,13 @@ function tanksNear(world, x, y, r) {
   return out;
 }
 
+export const BOSS_HP_SCALE = 0.25;
+
 export function spawnBoss(world, which, x, y, opts = {}) {
   const def = typeof which === 'number' ? BOSSES[which] : BOSS_BY_KEY[which] || BOSSES[0];
   const near = tanksNear(world, x, y, 1900).length;
   const n = Math.max(1, opts.players || near);
-  const hpMul = Math.min(2.6, 1 + 0.38 * (n - 1)) * (opts.hpMul || 1);
+  const hpMul = Math.min(2.6, 1 + 0.38 * (n - 1)) * (opts.hpMul || 1) * BOSS_HP_SCALE;
   let r = def.r;
   if (world.map.kind === 'labyrinth') r = def.move === 'chase' ? Math.min(r, 56) : Math.min(r, 92);
   const b = world.add({

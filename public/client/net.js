@@ -34,6 +34,22 @@ export async function checkHealth(base, timeout = 5000) {
   } finally { clearTimeout(timer); }
 }
 
+export async function api(path, body = null, method = null) {
+  const base = serverBase();
+  if (!base) return { error: 'No game server address is configured' };
+  try {
+    const headers = { 'Content-Type': 'application/json' };
+    if (store.session) headers.Authorization = `Bearer ${store.session}`;
+    const r = await fetch(`${httpUrl(base)}${path}`, { method: method || (body ? 'POST' : 'GET'), headers, body: body ? JSON.stringify(body) : undefined, cache: 'no-store' });
+    const j = await r.json().catch(() => ({ error: `HTTP ${r.status}` }));
+    if (r.status === 401 && store.session && path !== '/api/login') { store.session = ''; store.user = null; }
+    if (j.user) store.user = j.user;
+    return r.ok ? j : { error: j.error || `HTTP ${r.status}` };
+  } catch (e) {
+    return { error: 'Server unreachable' };
+  }
+}
+
 export async function roomCounts(base, codes, timeout = 5000) {
   if (!base || !codes.length) return {};
   const ctl = new AbortController();

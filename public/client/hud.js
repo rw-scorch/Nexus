@@ -1,5 +1,5 @@
 import { STAT_NAMES, STAT_MAX, MODES, TEAM_COLORS, MAX_LEVEL } from '../shared/constants.js';
-import { TANKS, TANKS_BY_ID, TANK_FAMILIES, tankByIndex, ABILITIES } from '../shared/tank-registry.js';
+import { TANKS, TANKS_BY_ID, TANK_FAMILIES, tankByIndex, ABILITIES, SECRET_IDS } from '../shared/tank-registry.js';
 import { BOSSES } from '../shared/boss-registry.js';
 import { UPGRADES } from '../shared/entity-types.js';
 import { previewTank } from './draw.js';
@@ -9,7 +9,7 @@ import { store } from './storage.js';
 
 const STAT_COLORS = ['#f2a65a', '#e8628f', '#a77de0', '#5b8def', '#f2c94c', '#ef5b5b', '#56c271', '#4cc3d9'];
 const TIER_IX = { 1: 0, 15: 1, 30: 2, 45: 3, 60: 4 };
-const tileColor = d => d.src === 'nexus' ? TIER_COLORS[5] : TIER_COLORS[TIER_IX[d.level] ?? 4];
+const tileColor = d => d.src === 'secret' ? '#3d4452' : d.src === 'custom' ? '#fc9a4a' : d.src === 'nexus' ? TIER_COLORS[5] : TIER_COLORS[TIER_IX[d.level] ?? 4];
 const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 export class Hud {
@@ -49,6 +49,7 @@ export class Hud {
           <button class="btn yellow hidden" data-a="team" id="h-teambtn">Team</button>
           <button class="btn orange hidden" data-a="sandbox" id="h-sbbtn">Sandbox</button>
           <button class="btn green hidden" data-a="pick" id="h-pickbtn">Tanks</button>
+          <button class="btn orange hidden" data-a="build" id="h-buildbtn">Build</button>
           <button class="btn" data-a="pause">Menu</button>
         </div>
         <div class="hbox" id="h-lb"></div>
@@ -60,6 +61,7 @@ export class Hud {
         <div class="hpbar"><i id="h-hp"></i></div>
         <div class="xpbar"><i id="h-xp"></i><span id="h-xpt"></span></div>
       </div>
+      <div id="h-kill" class="killpop"></div>
       <div id="h-overlay"></div>`;
     this.touchRoot.innerHTML = `
       <div class="stick hidden" id="t-move"><i></i></div>
@@ -99,7 +101,8 @@ export class Hud {
     this.el('h-teambtn').classList.toggle('hidden', mode !== 'nexus');
     this.el('h-sbbtn').classList.toggle('hidden', mode !== 'sandbox');
     this.battle = !!(MODES[mode] && MODES[mode].battle);
-    this.el('h-pickbtn').classList.toggle('hidden', !this.battle && mode !== 'sandbox');
+    this.el('h-pickbtn').classList.toggle('hidden', !this.battle && mode !== 'sandbox' && mode !== 'workshop');
+    this.el('h-buildbtn').classList.toggle('hidden', mode !== 'sandbox' && mode !== 'workshop');
     this.treeRoot = null;
     this.el('h-nexus').classList.toggle('hidden', mode !== 'nexus');
     this.feed = [];
@@ -143,6 +146,12 @@ export class Hud {
     box.appendChild(d);
     while (box.children.length > 5) box.firstChild.remove();
     setTimeout(() => d.remove(), ms);
+  }
+
+  killPop(name) {
+    const el = this.el('h-kill');
+    el.innerHTML = `You killed <b>${esc(name)}</b>`;
+    el.classList.remove('show'); void el.offsetWidth; el.classList.add('show');
   }
 
   addFeed(html) {
@@ -216,7 +225,8 @@ export class Hud {
     const rows = list.map(p => {
       const mine = p[7] && p[7] === myTank;
       const color = teams ? TEAM_COLORS[p[2]] : mine ? '#00b2e1' : '#f14e54';
-      const name = p[8] >= 0 && TANKS[p[8]] ? `${p[1]} - ${TANKS[p[8]].name}` : p[1];
+      const td = p[8] >= 0 ? tankByIndex(p[8]) : null;
+      const name = `${p[11] ? '\u2605 ' : ''}${td && td.bossKey ? '\u265B ' : ''}${p[1]}${td ? ` - ${td.name}` : ''}`;
       return `<div class="lb-row ${mine ? 'me' : ''}" style="--c:${color}"><em style="width:${Math.max(8, p[4] / top * 100)}%"></em><span>${esc(name)}</span><span>${p[4] >= 1000 ? (p[4] / 1000).toFixed(1) + 'k' : p[4]}</span></div>`;
     }).join('');
     this.set('h-lb', `<div class="lb-title">${esc(MODES[this.mode] ? MODES[this.mode].name : '')}</div>${rows}`);
@@ -296,6 +306,13 @@ export class Hud {
         return `Explore the maze. Secrets ${mi.sec ? mi.sec[0] : 0}/${mi.sec ? mi.sec[1] : 0}. Stay in a boss chamber or break its shrine to wake a guardian.`;
       case 'sandbox': return 'Press B to pick any tank, jump to max level, or summon bosses.';
       case 'battle': case 'battle_team': return 'No leveling. Spend your points, then fight. Tap Tanks to switch tank.';
+      case 'bosshunt': {
+        const hb = mi.hb;
+        if (!hb) return 'Choosing the first boss...';
+        if (y.id === hb[0]) return `You are ${hb[2]}. Everyone is hunting you.`;
+        return `Hunt the boss: ${hb[1]} as ${hb[2]}. Land the killing blow to become the next boss.`;
+      }
+      case 'workshop': return 'Tap Build to design a tank, then spawn as it. Shapes and dummies to test on.';
       case 'tdm': return 'Fight for your team. Break the central shrine to summon a boss.';
       default: return 'Destroy shapes to level up. Upgrade at levels 15, 30, 45 and 60.';
     }
@@ -352,7 +369,8 @@ export class Hud {
       const key = JSON.stringify([this.drawer, root, y.def, y.evo, this.mi && this.mi.bt]);
       if (this.cache.tree === key && box.dataset.k === this.drawer) return;
       this.cache.tree = key; box.dataset.k = this.drawer;
-      const chips = [['basic', 'All'], ...TANK_FAMILIES.map(f => [f.key, f.name])].map(([k, n]) => `<button class="chip ${k === root ? 'on' : ''}" data-a="treefam" data-k="${k}">${esc(n)}</button>`).join('');
+      const secrets = SECRET_IDS.filter(id => (store.localUnlocks || []).includes(id) || (store.user && (store.user.unlocks.includes(id) || store.user.admin)));
+      const chips = [['basic', 'All'], ...TANK_FAMILIES.map(f => [f.key, f.name]), ...(pick ? secrets.map(id => [id, '???']) : [])].map(([k, n]) => `<button class="chip ${k === root ? 'on' : ''}" data-a="treefam" data-k="${k}">${esc(n)}</button>`).join('');
       const note = pick ? 'Tap any tank to use it. In Battle every tank starts at level 60.' : 'Dark outline: your tank. Green outline: tap to upgrade now. Colors show the level: yellow 1, blue 15, green 30, red 45, purple 60, orange Nexus originals.';
       box.innerHTML = `${close}<h2 class="title">${pick ? 'Choose a Tank' : 'Class Tree'}</h2><p class="muted" style="margin:0 0 8px">${note}</p><div class="chips tree-chips">${chips}</div><div class="tree-scroll"><canvas id="h-tree"></canvas></div>`;
       const cv = box.querySelector('#h-tree');
@@ -369,7 +387,7 @@ export class Hud {
     }
     if (this.drawer === 'players') {
       const teams = MODES[this.mode] && MODES[this.mode].teams;
-      box.innerHTML = `${close}<h2 class="title">Players</h2><table><tr><th>Name</th>${teams ? '<th>Team</th>' : ''}<th>Tank</th><th>K</th><th>D</th><th>Score</th></tr>${[...this.players].sort((a, b) => b[4] - a[4]).map(p => `<tr><td>${esc(p[1])}${p[9] ? '' : ' <span class="muted">(reconnecting)</span>'}</td>${teams ? `<td style="color:${TEAM_COLORS[p[2]]}">${this.teamName(p[2])}</td>` : ''}<td>${p[8] >= 0 ? esc(TANKS[p[8]].name) : '<span class="muted">dead</span>'}</td><td>${p[5]}</td><td>${p[6]}</td><td>${p[4]}</td></tr>`).join('')}</table>`;
+      box.innerHTML = `${close}<h2 class="title">Players</h2><table><tr><th>Name</th>${teams ? '<th>Team</th>' : ''}<th>Tank</th><th>K</th><th>D</th><th>Score</th></tr>${[...this.players].sort((a, b) => b[4] - a[4]).map(p => `<tr><td>${esc(p[1])}${p[9] ? '' : ' <span class="muted">(reconnecting)</span>'}</td>${teams ? `<td style="color:${TEAM_COLORS[p[2]]}">${this.teamName(p[2])}</td>` : ''}<td>${p[8] >= 0 ? esc(tankByIndex(p[8]).name) : '<span class="muted">dead</span>'}</td><td>${p[5]}</td><td>${p[6]}</td><td>${p[4]}</td></tr>`).join('')}</table>`;
     } else if (this.drawer === 'team') {
       const mi = this.mi || {};
       const key = JSON.stringify([mi.cr, mi.up, mi.ecd, this.meStats && this.meStats.co]);

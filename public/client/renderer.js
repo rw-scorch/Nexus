@@ -1,5 +1,7 @@
 import { TILE, TILES, VIEW_RADIUS, TEAM, TEAM_COLORS, MODES } from '../shared/constants.js';
-import { tankByIndex, TANKS } from '../shared/tank-registry.js';
+import { tankByIndex, TANKS, PUBLIC_TANKS } from '../shared/tank-registry.js';
+import { COSMETICS } from '../shared/cosmetics.js';
+import { BOSS_BY_KEY } from '../shared/boss-registry.js';
 import { SHAPES, SHAPE_KEYS, MOBS, MOB_KEYS, STRUCT_BY_CODE, HAZ, MAP_THEMES } from '../shared/entity-types.js';
 import { BOSSES } from '../shared/boss-registry.js';
 import { decodeTiles } from '../shared/map-generator.js';
@@ -18,6 +20,11 @@ const LIGHT = {
   void: { floor: '#dcd7e9', wall: '#9d93ba', out: '#c4bfd3' },
   endless: { floor: '#d9d9df', wall: '#a3a0ae', out: '#c1c0c8' }
 };
+
+function hslHex(h) {
+  const f = n => { const k = (n + h / 30) % 12; const a = 0.85 * Math.min(0.55, 1 - 0.55); const c = 0.55 - a * Math.max(-1, Math.min(k - 3, 9 - k, 1)); return Math.round(255 * c).toString(16).padStart(2, '0'); };
+  return `#${f(0)}${f(8)}${f(4)}`;
+}
 
 export class Renderer {
   constructor(canvas) {
@@ -261,6 +268,7 @@ export class Renderer {
     for (const e of byType[7]) drawPickup(ctx, e[4], e[2], e[3], this.time);
     for (const e of byType[2]) drawShape(ctx, SHAPES[SHAPE_KEYS[e[6]]] && { ...SHAPES[SHAPE_KEYS[e[6]]], kind: SHAPE_KEYS[e[6]] }, e[2], e[3], e[5], e[4] / 100, e[8]);
     for (const e of byType[2]) if (e[7] < 100) this.hpBar(ctx, e[2], e[3] + e[5] + 8, e[5] * 1.6, e[7] / 100, '#7fe08a');
+    this.drawTrails(ctx, byType[1], dt);
     for (const e of byType[1]) this.drawBullet(ctx, e);
     for (const e of byType[6]) this.drawStructE(ctx, e);
     for (const e of byType[3]) {
@@ -319,7 +327,7 @@ export class Renderer {
       const rnd = (a, b) => a + Math.random() * (b - a);
       const shapes = [];
       for (let i = 0; i < 46; i++) shapes.push({ x: rnd(0, 1), y: rnd(0, 1), r: [11, 14, 22][i % 3], sides: [4, 3, 5][i % 3], a: rnd(0, 6.28), va: rnd(-0.4, 0.4), vx: rnd(-6, 6), vy: rnd(-6, 6) });
-      const pool = TANKS.filter(t => t.level >= 30);
+      const pool = PUBLIC_TANKS.filter(t => t.level >= 30);
       const tanks = [];
       const cols = ['#00b2e1', '#f14e54', '#00c864', '#b57cf0'];
       for (let i = 0; i < 7; i++) tanks.push({ def: pool[Math.floor(Math.random() * pool.length)], x: rnd(0.05, 0.95), y: rnd(0.05, 0.95), a: rnd(0, 6.28), heading: rnd(0, 6.28), color: cols[i % cols.length], swapAt: rnd(6, 14) });
@@ -353,7 +361,7 @@ export class Renderer {
       tk.y = (tk.y + Math.sin(tk.heading) * 24 * dt / (H / d) + 1) % 1;
       tk.a += Math.sin(bd.t * 0.9 + tk.y * 7) * 0.8 * dt;
       tk.swapAt -= dt;
-      if (tk.swapAt <= 0) { const pool = TANKS.filter(t => t.level >= 30); tk.def = pool[Math.floor(Math.random() * pool.length)]; tk.swapAt = 8 + Math.random() * 8; }
+      if (tk.swapAt <= 0) { const pool = PUBLIC_TANKS.filter(t => t.level >= 30); tk.def = pool[Math.floor(Math.random() * pool.length)]; tk.swapAt = 8 + Math.random() * 8; }
       drawTank(ctx, tk.def, { x: tk.x * W, y: tk.y * H, angle: tk.a, r: 20 * d, color: tk.color, time: bd.t, idleSpin: true });
     }
     ctx.fillStyle = 'rgba(228,230,234,0.18)';
@@ -458,15 +466,96 @@ export class Renderer {
     ctx.fillRect(x - w / 2, y, w * Math.max(0, frac), 4);
   }
 
+  drawTrails(ctx, bullets, dt) {
+    if (!this.btr) this.btr = new Map();
+    const tr = this.btr;
+    const reduced = store.settings.reducedEffects;
+    const now = this.time;
+    for (const e of bullets) {
+      const kind = e[6];
+      if (kind === 1 || kind === 2 || kind === 3 || kind === 5) continue;
+      let t = tr.get(e[1]);
+      if (!t) { t = { pts: [], style: e[10] || 0, color: this.colorFor(e[5]), r: e[4] }; tr.set(e[1], t); }
+      t.seen = now; t.r = e[4];
+      const last = t.pts[t.pts.length - 1];
+      if (!last || Math.hypot(last[0] - e[2], last[1] - e[3]) > 3) t.pts.push([e[2], e[3], now]);
+      const maxLen = reduced ? 4 : t.style ? 12 : 8;
+      while (t.pts.length > maxLen) t.pts.shift();
+      if (!reduced && t.style && Math.random() < 0.35) this.trailParticle(t, e[2], e[3]);
+    }
+    ctx.save();
+    ctx.lineCap = 'round'; ctx.lineJoin = 'round';
+    for (const [id, t] of tr) {
+      if (now - t.seen > 0.25) { tr.delete(id); continue; }
+      const fade = now - t.seen > 0.02 ? Math.max(0, 1 - (now - t.seen) / 0.25) : 1;
+      const pts = t.pts;
+      if (pts.length < 2) continue;
+      for (let i = 1; i < pts.length; i++) {
+        const f = i / pts.length;
+        let col = t.color, w = t.r * (0.35 + 0.75 * f), alpha = 0.28 * f * fade;
+        switch (t.style) {
+          case 1: col = i > pts.length * 0.6 ? '#ffd23f' : '#ff6a2b'; alpha = 0.6 * f * fade; w *= 1.2; break;
+          case 2: col = '#38f2ff'; alpha = 0.75 * f * fade; w *= 0.7; break;
+          case 3: col = '#bfe9ff'; alpha = 0.6 * f * fade; break;
+          case 4: col = '#8b919c'; alpha = 0.4 * f * fade; w *= 1.4; break;
+          case 5: col = '#ffe680'; alpha = 0.55 * f * fade; w *= 0.8; break;
+          case 6: col = `hsl(${(now * 240 + i * 28) % 360},90%,60%)`; alpha = 0.7 * f * fade; break;
+        }
+        ctx.beginPath(); ctx.moveTo(pts[i - 1][0], pts[i - 1][1]); ctx.lineTo(pts[i][0], pts[i][1]);
+        ctx.globalAlpha = alpha; ctx.strokeStyle = col; ctx.lineWidth = w; ctx.stroke();
+        if (t.style === 2) { ctx.globalAlpha = alpha * 0.35; ctx.lineWidth = w * 2.4; ctx.stroke(); }
+      }
+    }
+    ctx.restore();
+  }
+
+  trailParticle(t, x, y) {
+    const r = t.r;
+    switch (t.style) {
+      case 1: this.addParticle({ k: 'dot', x, y, vx: (Math.random() - 0.5) * 40, vy: (Math.random() - 0.5) * 40 - 20, life: 0.35, size: r * 0.45, color: Math.random() < 0.5 ? '#ff9a3d' : '#ffd23f' }); break;
+      case 3: this.addParticle({ k: 'spark', x: x + (Math.random() - 0.5) * r, y: y + (Math.random() - 0.5) * r, life: 0.5, size: r * 0.5, color: '#e6f8ff' }); break;
+      case 4: this.addParticle({ k: 'puff', x, y, life: 0.7, size: r * 0.7, color: '#9aa0aa' }); break;
+      case 5: this.addParticle({ k: 'spark', x: x + (Math.random() - 0.5) * r * 2, y: y + (Math.random() - 0.5) * r * 2, life: 0.55, size: r * 0.6, color: '#ffd23f' }); break;
+      case 6: this.addParticle({ k: 'dot', x, y, vx: 0, vy: 0, life: 0.4, size: r * 0.4, color: `hsl(${(this.time * 300) % 360},90%,60%)` }); break;
+    }
+  }
+
+  killEffect(kx, x, y, r, color) {
+    const rnd = (a, b) => a + Math.random() * (b - a);
+    r = Math.max(14, r || 22);
+    switch (kx) {
+      case 1: {
+        const cols = ['#ff4f6a', '#ffd23f', '#00c864', '#00b2e1', '#b57cf0', '#fc9a4a'];
+        for (let i = 0; i < 46; i++) { const a = rnd(0, 6.28), s = rnd(120, 420); this.addParticle({ k: 'conf', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - 120, rot: rnd(0, 6), vr: rnd(-12, 12), life: rnd(0.9, 1.5), size: rnd(4, 8), color: cols[i % cols.length] }); }
+        break;
+      }
+      case 2: for (let i = 0; i < 3; i++) this.ring(x, y, r * (4 + i * 2.2), i === 1 ? 'rgba(255,255,255,0.9)' : color, 0.5 + i * 0.18, 8 - i * 2); this.addShake(6, x, y); break;
+      case 3:
+        for (let i = 0; i < 4; i++) { const ox = rnd(-r * 2, r * 2); this.addParticle({ k: 'bolt', x: x + ox + rnd(-60, 60), y: y - 520, x2: x + ox * 0.3, y2: y, life: 0.35 + i * 0.05, color: i % 2 ? '#fff7a0' : '#9ee8ff' }); }
+        this.addParticle({ k: 'flash', x, y, r: r * 5, life: 0.25, color: 'rgba(255,255,220,0.8)' }); this.addShake(8, x, y); break;
+      case 4: this.addParticle({ k: 'skull', x, y, vx: 0, vy: -45, life: 1.4, size: r * 1.3 }); this.burst(x, y, 14, '#3d4452', 220, 4, 0.6); break;
+      case 5:
+        for (let k = 0; k < 4; k++) {
+          const fx = x + rnd(-r * 3, r * 3), fy = y + rnd(-r * 3, r);
+          const col = ['#ff4f6a', '#ffd23f', '#38f2ff', '#b57cf0'][k];
+          setTimeout(() => { for (let i = 0; i < 22; i++) { const a = i / 22 * 6.28, s = rnd(180, 260); this.addParticle({ k: 'dot', x: fx, y: fy, vx: Math.cos(a) * s, vy: Math.sin(a) * s, life: 0.8, size: 3.5, color: col }); } this.ring(fx, fy, 60, col, 0.4, 3); }, k * 160);
+        }
+        break;
+      case 6:
+        this.addParticle({ k: 'hole', x, y, r: r * 2.4, life: 1.3 });
+        for (let i = 0; i < 30; i++) { const a = rnd(0, 6.28), d = rnd(r * 2, r * 6); this.addParticle({ k: 'suck', x: x + Math.cos(a) * d, y: y + Math.sin(a) * d, cx: x, cy: y, life: rnd(0.6, 1.1), size: rnd(2, 5), color: i % 3 ? '#6b4fa8' : '#1d2433' }); }
+        this.addShake(5, x, y); break;
+      default:
+        this.ring(x, y, r * 3.2, color, 0.45, 5);
+        for (let i = 0; i < 16; i++) { const a = rnd(0, 6.28), s = rnd(150, 380); this.addParticle({ k: 'shard', x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s, rot: rnd(0, 6), vr: rnd(-10, 10), life: rnd(0.5, 0.9), size: rnd(4, 8), color }); }
+    }
+  }
+
   drawBullet(ctx, e) {
     const [, , x, y, r, team, kind, ang, fx, shapeDrone] = e;
     const color = this.colorFor(team);
     const a = ang / 100;
     ctx.save();
-    if (!store.settings.reducedEffects && (kind === 0 || kind === 6) && r < 30) {
-      ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - Math.cos(a) * r * 3, y - Math.sin(a) * r * 3);
-      ctx.lineWidth = r * 1.1; ctx.lineCap = 'round'; ctx.strokeStyle = color; ctx.globalAlpha = 0.18; ctx.stroke(); ctx.globalAlpha = 1;
-    }
     const fill = fx === 1 ? '#6fe36b' : color;
     const stroke = shade(fill.startsWith('#') ? fill : '#38a3ff', -0.4);
     const lw = Math.max(1.5, r * 0.22);
@@ -502,6 +591,20 @@ export class Renderer {
     const def = tankByIndex(defIdx);
     const isMe = id === this.me.id;
     let color = isMe ? TEAM_COLORS[0] : this.colorFor(team);
+    const skin = COSMETICS.skin[e[15] || 0];
+    if (skin && skin.color && !this.teams) {
+      color = skin.anim === 'rainbow' ? hslHex((this.time * 90 + id * 37) % 360) : skin.anim === 'pulse' ? shade(skin.color, 0.18 * Math.sin(this.time * 6)) : skin.color;
+    }
+    if (def.bossKey && BOSS_BY_KEY[def.bossKey]) {
+      const bd = BOSS_BY_KEY[def.bossKey];
+      let alpha2 = flags & 1 ? 0.35 : 1;
+      ctx.save(); ctx.globalAlpha = alpha2;
+      ctx.beginPath(); ctx.arc(x, y, r * 1.25, 0, Math.PI * 2); ctx.lineWidth = 5; ctx.strokeStyle = isMe ? 'rgba(0,178,225,0.8)' : 'rgba(241,78,84,0.75)'; ctx.setLineDash([14, 10]); ctx.lineDashOffset = -this.time * 40; ctx.stroke(); ctx.setLineDash([]);
+      drawBoss(ctx, bd, x, y, r, ang / 100, this.serverT || this.time, flags & 128 ? 32 : 0, null);
+      ctx.restore();
+      star(ctx, x, y - r * 1.35 - 26, 16, 5, 0.45, -Math.PI / 2); ctx.fillStyle = '#ffd23f'; ctx.fill(); ctx.lineWidth = 3; ctx.strokeStyle = '#c79f1d'; ctx.stroke();
+      return;
+    }
     let alpha = 1;
     if (flags & 1) alpha = isMe || team === this.me.team ? 0.35 : 0.2;
     if (flags & 4) alpha *= 0.55 + 0.45 * Math.abs(Math.sin(this.time * 8));
@@ -615,6 +718,51 @@ export class Renderer {
         case 'line':
           ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(p.x2, p.y2); ctx.lineWidth = 6 * f; ctx.strokeStyle = p.color; ctx.globalAlpha = f; ctx.stroke(); ctx.globalAlpha = 1;
           break;
+        case 'conf': case 'shard':
+          p.x += p.vx * dt; p.y += p.vy * dt; p.vx *= 0.95; p.vy = p.vy * 0.95 + (p.k === 'conf' ? 260 * dt : 0); p.rot += p.vr * dt;
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot); ctx.globalAlpha = Math.min(1, f * 1.5); ctx.fillStyle = p.color;
+          if (p.k === 'conf') ctx.fillRect(-p.size / 2, -p.size / 4, p.size, p.size / 2);
+          else { ctx.beginPath(); ctx.moveTo(p.size, 0); ctx.lineTo(-p.size * 0.6, p.size * 0.5); ctx.lineTo(-p.size * 0.6, -p.size * 0.5); ctx.closePath(); ctx.fill(); ctx.lineWidth = 1.5; ctx.strokeStyle = 'rgba(0,0,0,0.25)'; ctx.stroke(); }
+          ctx.restore();
+          break;
+        case 'spark':
+          ctx.globalAlpha = f; ctx.fillStyle = p.color; ctx.beginPath();
+          for (let k = 0; k < 4; k++) { const a = k * Math.PI / 2 + this.time * 3; ctx.moveTo(p.x, p.y); ctx.lineTo(p.x + Math.cos(a) * p.size * 1.6 * f, p.y + Math.sin(a) * p.size * 1.6 * f); }
+          ctx.lineWidth = 1.5; ctx.strokeStyle = p.color; ctx.stroke(); ctx.globalAlpha = 1;
+          break;
+        case 'puff':
+          ctx.globalAlpha = f * 0.35; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size * (1.8 - f), 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+          break;
+        case 'flash':
+          ctx.globalAlpha = f; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (1.2 - f * 0.4), 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+          break;
+        case 'skull': {
+          p.y += p.vy * dt;
+          const s2 = p.size;
+          ctx.save(); ctx.translate(p.x, p.y); ctx.globalAlpha = Math.min(1, f * 2);
+          ctx.fillStyle = '#f4f6fa'; ctx.strokeStyle = '#1d2433'; ctx.lineWidth = 3;
+          ctx.beginPath(); ctx.arc(0, -s2 * 0.15, s2 * 0.55, Math.PI, 0); ctx.lineTo(s2 * 0.4, s2 * 0.35); ctx.lineTo(-s2 * 0.4, s2 * 0.35); ctx.closePath(); ctx.fill(); ctx.stroke();
+          ctx.fillStyle = '#1d2433';
+          ctx.beginPath(); ctx.arc(-s2 * 0.2, -s2 * 0.1, s2 * 0.13, 0, Math.PI * 2); ctx.arc(s2 * 0.2, -s2 * 0.1, s2 * 0.13, 0, Math.PI * 2); ctx.fill();
+          ctx.fillRect(-s2 * 0.18, s2 * 0.18, s2 * 0.08, s2 * 0.17); ctx.fillRect(s2 * 0.1, s2 * 0.18, s2 * 0.08, s2 * 0.17);
+          ctx.restore();
+          break;
+        }
+        case 'hole': {
+          const g = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.r);
+          g.addColorStop(0, `rgba(10,8,20,${0.95 * f})`); g.addColorStop(0.6, `rgba(70,40,120,${0.6 * f})`); g.addColorStop(1, 'rgba(70,40,120,0)');
+          ctx.fillStyle = g; ctx.beginPath(); ctx.arc(p.x, p.y, p.r * (0.6 + 0.4 * Math.sin(Math.min(1, (1 - f) * 3) * 1.57)), 0, Math.PI * 2); ctx.fill();
+          ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(this.time * 4); ctx.strokeStyle = `rgba(181,124,240,${f})`; ctx.lineWidth = 3;
+          for (let k = 0; k < 3; k++) { ctx.beginPath(); ctx.arc(0, 0, p.r * (0.3 + k * 0.2), k * 2, k * 2 + 2.2); ctx.stroke(); }
+          ctx.restore();
+          break;
+        }
+        case 'suck': {
+          const k2 = Math.min(1, 6 * dt);
+          p.x += (p.cx - p.x) * k2; p.y += (p.cy - p.y) * k2;
+          ctx.globalAlpha = f; ctx.fillStyle = p.color; ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2); ctx.fill(); ctx.globalAlpha = 1;
+          break;
+        }
         case 'bolt': {
           ctx.beginPath(); ctx.moveTo(p.x, p.y);
           const n = 6;

@@ -530,7 +530,42 @@ export function generateNexusMap(seed) { return retry(tryNexusMap, seed); }
 export function generateArena(seed, teams = false) { return retry(tryArena, seed, teams); }
 export function generateMaze(seed, teams = false) { return retry(tryMaze, seed, teams); }
 
-export function generateMap(mode, seed, theme) {
+export function buildCustomMap(cm, teams, seed = 1) {
+  const w = Math.max(24, Math.min(120, cm.w | 0)), h = Math.max(24, Math.min(120, cm.h | 0));
+  const map = { w, h, tiles: blank(w, h, T.FLOOR), theme: 'arena', seed, kind: 'arena', custom: true, rooms: [], spawns: [], teleporters: [], doors: [], conveyors: new Map(), regions: [], mobSpots: [], features: [], teleIndex: new Map() };
+  const str = String(cm.tiles || '');
+  for (let i = 0; i < w * h; i++) {
+    const v = parseInt(str[i] || '0', 16);
+    map.tiles[i] = v === T.TELEPORT || v === T.DOOR || v === T.DOOR_OPEN || v === T.CONVEYOR || v === T.TEMP || !(v >= 0 && v <= 13) ? T.FLOOR : v;
+  }
+  border(map);
+  const rng = makeRng(seed);
+  for (const sp of cm.spawns || []) {
+    const x = Math.max(1, Math.min(w - 2, sp.x | 0)), y = Math.max(1, Math.min(h - 2, sp.y | 0));
+    if (isSolidTile(map.tiles[y * w + x])) continue;
+    const o = { x: (x + 0.5) * TILE, y: (y + 0.5) * TILE };
+    if (teams && (sp.team === 0 || sp.team === 1)) o.team = sp.team;
+    map.spawns.push(o);
+  }
+  if (teams) {
+    for (const team of [0, 1]) {
+      if (map.spawns.some(s => s.team === team)) continue;
+      for (let k = 0; k < 40 && map.spawns.filter(s => s.team === team).length < 4; k++) {
+        const x = team === 0 ? rng.int(2, Math.max(3, w / 4)) : rng.int(Math.min(w - 3, w * 3 / 4), w - 3), y = rng.int(2, h - 3);
+        if (!isSolidTile(map.tiles[y * w + x])) map.spawns.push({ team, x: (x + 0.5) * TILE, y: (y + 0.5) * TILE });
+      }
+    }
+  }
+  for (let k = 0; k < 400 && map.spawns.length < 6; k++) {
+    const x = rng.int(2, w - 3), y = rng.int(2, h - 3);
+    if (!isSolidTile(map.tiles[y * w + x])) map.spawns.push({ x: (x + 0.5) * TILE, y: (y + 0.5) * TILE });
+  }
+  if (!map.spawns.length) { map.tiles[(h >> 1) * w + (w >> 1)] = T.FLOOR; map.spawns.push({ x: (w / 2 + 0.5) * TILE, y: (h / 2 + 0.5) * TILE }); }
+  return map;
+}
+
+export function generateMap(mode, seed, theme, customMap = null) {
+  if (customMap && mode !== 'nexus' && !String(mode).startsWith('labyrinth')) return buildCustomMap(customMap, mode === 'tdm' || mode === 'battle_team' || mode === 'maze_team', seed);
   if (mode === 'nexus') return generateNexusMap(seed);
   if (mode === 'maze' || mode === 'maze_team') return generateMaze(seed, mode === 'maze_team');
   if (mode === 'labyrinth' || mode === 'labyrinth_team') return generateLabyrinth(seed, THEMES.includes(theme) ? theme : 'classic');

@@ -49,3 +49,34 @@ export const NEXUS_TANKS = [
   { id: 'thornback', name: 'Thornback', level: 60, parents: ['spike', 'megaSmasher'], smasher: 1, tip: 'Sheds shards when struck. No guns.', bodyFx: { shards: 1 }, stats: { hp: 1.1, bodyDmg: 1.7, speed: 1.05 }, decos: [{ sides: 3, s: 1.08, a: 0, x: 0, y: 0, layer: 0, spin: 1, dark: 1 }, { sides: 3, s: 1.08, a: 60, x: 0, y: 0, layer: 0, spin: 1, dark: 1 }, { sides: 3, s: 1.08, a: 30, x: 0, y: 0, layer: 0, spin: 1, dark: 1 }], guns: [] },
   { id: 'afterburner', name: 'Afterburner', level: 60, parents: ['booster', 'fighter'], body: 'circle', ability: 'dash', tip: 'Extra thrusters and a dash.', stats: { speed: 1.08 }, guns: [barrel(18, 8, 1, 0, 0, 0, 0, { r: 0.9, dm: 0.7 }), ...mirror(14, 8, 1, 0, 0, 135, 0.25, { r: 1, dm: 0.4, pn: 0.6, rec: 2.8, lf: 0.6 }), ...mirror(16, 8, 1, 0, 0, 155, 0.1, { r: 1, dm: 0.4, pn: 0.6, rec: 2.8, lf: 0.6 }), barrel(18, 8, 1, 0, 0, 180, 0.6, { r: 1, dm: 0.4, pn: 0.6, rec: 2.8, lf: 0.6 })] }
 ];
+
+export const SECRET_TANKS = [
+  {
+    id: 'scorch', name: 'Scorch', level: 45, body: 'hex', stealth: 1, ability: 'overdrive', spin: 0.9,
+    tip: 'A tank that should not exist. Three burning lances that chain between enemies, and it fades when still.',
+    stats: { hp: 1.25, speed: 1.08, bodyDmg: 1.4, fov: 1.3 },
+    decos: [{ sides: 3, s: 1.18, a: 0, x: 0, y: 0, layer: 0, spin: -1.6, dark: 1 }, { sides: 3, s: 1.18, a: 60, x: 0, y: 0, layer: 0, spin: -1.6, dark: 1 }, { sides: 6, s: 0.42, a: 0, x: 0, y: 0, layer: 1, spin: 2.4, dark: 1 }],
+    guns: [
+      ...ring(3, 22, 7, 1, 2, beam({ fx: { chain: 2, explode: 0.4 }, dm: 1.25, r: 2.1, sp: 1.1 })),
+      ...ring(3, 13, 9, -1.4, 2, { k: 'shell', r: 2.8, dm: 0.6, sp: 0.85, pn: 1.2, fx: { home: 1, missile: 1 }, rec: 0.2 }, 60)
+    ]
+  }
+];
+
+export function bossTankRaws(bosses) {
+  return bosses.map((b, i) => {
+    const pattern = i % 5;
+    let guns;
+    if (pattern === 0) guns = ring(8, 17, 9, 1, 0, { r: 1.6, dm: 1.3, pn: 2, sp: 0.95 });
+    else if (pattern === 1) guns = [barrel(21, 11, 1, 0, 0, 0, 0, { r: 1.2, dm: 1.6, pn: 2.4 }), ...mirror(19, 8, 1, 0, 0, 22, 0.5, { r: 1.2, dm: 1, pn: 1.6 }), spawner(120, { max: 4, dm: 1.4 }), spawner(-120, { max: 4, dm: 1.4 })];
+    else if (pattern === 2) guns = [barrel(22, 13, 1, 0, 0, 0, 0, { k: 'shell', r: 2.4, dm: 2.6, sp: 0.8, pn: 3, fx: { explode: 0.8 } }), ...[60, 120, 180, 240, 300].flatMap(a => trapLauncher(a, { r: 2.6, dm: 1.4, sz: 0.9 }))];
+    else if (pattern === 3) guns = [...ring(4, 18, 10, 1, 0, { k: 'shell', r: 2.2, dm: 1.2, sp: 0.85, pn: 1.6, fx: { home: 1, missile: 1 } }, 45), ...ring(4, 15, 8, 1, 0, { r: 1.1, dm: 0.9, pn: 1.4 })];
+    else guns = [barrel(24, 10, 1, 0, 0, 0, 0, beam({ dm: 2.2, r: 2.4, fx: { pierce: 2 } })), ...ring(6, 14, 7, 1, 0, { r: 1.3, dm: 0.8, pn: 1.3 }, 30)];
+    return {
+      id: `boss_${b.key}`, name: b.name.replace(/^The /, ''), level: 60, bossKey: b.key, ability: 'none',
+      tip: `${b.title}. Played by whoever slew the last boss.`,
+      stats: { hp: 6, size: 2.6, speed: 0.72, bodyDmg: 2.6, fov: 1.5, accel: 0.8 },
+      guns
+    };
+  });
+}

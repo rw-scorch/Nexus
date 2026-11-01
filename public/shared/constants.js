@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 4;
+export const PROTOCOL_VERSION = 5;
 export const TICK_RATE = 30;
 export const DT = 1 / TICK_RATE;
 export const SNAPSHOT_EVERY = 2;
@@ -50,6 +50,8 @@ export const MODES = {
   labyrinth_team: { name: 'Labyrinth Teams', teams: true, desc: 'Procedural maze, two teams.' },
   battle: { name: 'Battle', teams: false, battle: true, desc: 'No leveling. Spawn at level 60 with any tank you like and fight.' },
   battle_team: { name: 'Team Battle', teams: true, battle: true, desc: 'No leveling, two teams. Pick any tank and fight.' },
+  bosshunt: { name: 'Boss Hunt', teams: false, battle: true, bosshunt: true, desc: 'One player is a random boss. Whoever kills it becomes the next boss.' },
+  workshop: { name: 'Workshop', teams: false, workshop: true, desc: 'Build your own tank and test it at level 60.' },
   sandbox: { name: 'Sandbox', teams: false, desc: 'Pick any tank, jump to max level and summon bosses.' }
 };
 

@@ -1,6 +1,6 @@
 # Nexus: Infinite Warfare
 
-Browser multiplayer tank game. Authoritative server, 265 tanks that follow the arras.io class tree (131 classic, 105 Arms Race, 29 Nexus originals), 20 bosses, Nexus Siege, Battle mode with no leveling, arras-style Maze maps, procedural Labyrinths in six themes, bots, touch controls.
+Browser multiplayer tank game with accounts, a shop, admin tools, a tank builder and a map builder. Authoritative server, 265 tanks that follow the arras.io class tree (131 classic, 105 Arms Race, 29 Nexus originals), 20 bosses, Nexus Siege, Battle mode with no leveling, arras-style Maze maps, procedural Labyrinths in six themes, bots, touch controls.
 
 The game is two programs:
 
@@ -74,7 +74,7 @@ Netlify cannot run the game server itself. Without a server address the menu sho
 ```powershell
 npm install
 npm start          # Node server + client on http://localhost:8080
-npm test           # 53 automated tests (Node 22+)
+npm test           # 60 automated tests (Node 22+)
 npm run validate   # registry, boss and map validation summary
 npm run cf:dev     # run the Cloudflare Worker locally on http://localhost:8787
 ```
@@ -93,6 +93,17 @@ npm test
 ```
 
 The importer parses the upstream files with `acorn` and reads them as data. It never runs upstream code.
+
+## Accounts, admins and running games
+
+- **Accounts** are stored by the server: in the `Accounts` Durable Object on Cloudflare (added by the `v2` migration in `wrangler.toml`), or in `data/accounts.json` on the Node server (`DATA_DIR` changes the folder). Passwords are hashed with PBKDF2. Logged-in players earn account XP and coins from kills, score and boss kills in online matches.
+- **Shop**: coins buy tank skins (free-for-all modes), bullet trails and kill effects. Everyone sees them.
+- **Redeem codes**: the admin code turns an account into an admin. Only its SHA-256 hash is in `server/accounts.js`; to change the code, replace `ADMIN_CODE_SHA256` with the hash of a new one. Admins can also create coin and XP codes.
+- **Which games run**: Battle is always on, plus one random mode that changes every 2 hours. Everything else must be started by an admin from the Admin panel (mode, bots, map, optional room code), and stopped there too. The server picks the mode for each room, so a modified client cannot open other games. Offline practice in the browser can still use any mode. Set `OPEN_ROOMS=1` on a server to allow any room code again.
+- **Map builder** (admins): paint walls, breakable walls, crystal, vines, team bases and spawns with optional mirroring, save, then start a game on that map. Custom maps work in Arena, Team Arena, Battle, Team Battle, Boss Hunt, Workshop and Sandbox.
+- **Tank Builder**: design a tank from up to 16 barrel parts (bullets, drones, traps, swarms, beams, missiles, decoration) with copies around the body and mirroring. Play it in Workshop or Sandbox games, or test it offline. The server caps barrels, drones and damage.
+- **Boss Hunt**: one player becomes a random boss (health scales with player count). Whoever lands the killing blow becomes the next boss.
+- All bosses have a quarter of their listed health (`BOSS_HP_SCALE` in `shared/sim/bosses.js`).
 
 ## Troubleshooting
 

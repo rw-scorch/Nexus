@@ -30,7 +30,7 @@ export function fireGun(world, owner, g, gi, ang, sx, sy, st) {
     world.addBullet({
       kind, x: sx + ca * 2, y: sy + sa * 2, vx: ca * speed + (owner.vx || 0) * inherit, vy: sa * speed + (owner.vy || 0) * inherit,
       r: Math.max(3, r), dmg, hp, life, team: st.team, ownerId: st.ownerId, fx: g.fx, gunIdx: gi, maxSpeed: speed, angle: a,
-      minionGun: kind === 'minion' ? { cd: 0.6, dmg: dmg * 0.6 } : null, chill: g.chill || 0
+      minionGun: kind === 'minion' ? { cd: 0.6, dmg: dmg * 0.6 } : null, chill: g.chill || 0, trail: owner.player && owner.player.cos ? owner.player.cos.trail : 0
     });
   }
   return true;

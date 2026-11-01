@@ -25,7 +25,7 @@ test('every client module import resolves to a real file inside public/', () => 
 });
 
 test('static client is served and loads its entry module', async () => {
-  const server = await createServer({ port: 0, host: '127.0.0.1', quiet: true });
+  const server = await createServer({ port: 0, host: '127.0.0.1', quiet: true, dataFile: null });
   const port = server.address().port;
   try {
     const html = await (await fetch(`http://127.0.0.1:${port}/`)).text();
@@ -46,7 +46,7 @@ test('Cloudflare worker answers health checks and routes rooms to Durable Object
   assert.equal(h.ok, true);
   assert.equal(h.protocol, PROTOCOL_VERSION);
   let routed = null;
-  const env = { ROOMS: { idFromName: n => `id:${n}`, get: id => ({ fetch: async () => { routed = id; return new Response('ok'); } }) }, ASSETS: { fetch: async () => new Response('asset') } };
+  const env = { ROOMS: { idFromName: n => `id:${n}`, get: id => ({ fetch: async () => { routed = id; return new Response('ok'); } }) }, ACCOUNTS: { idFromName: n => n, get: () => ({ fetch: async () => new Response(JSON.stringify({ game: { mode: 'ffa', settings: {} } })) }) }, ASSETS: { fetch: async () => new Response('asset') } };
   await worker.fetch(new Request('https://x.test/ws?room=pub-ffa-1'), env);
   assert.equal(routed, 'id:pub-ffa-1');
   const bad = await worker.fetch(new Request('https://x.test/ws?room=../../x'), env);
