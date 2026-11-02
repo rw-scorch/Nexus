@@ -565,7 +565,7 @@ export function buildCustomMap(cm, teams, seed = 1) {
 }
 
 export function generateMap(mode, seed, theme, customMap = null) {
-  if (customMap && mode !== 'nexus' && !String(mode).startsWith('labyrinth')) return buildCustomMap(customMap, mode === 'tdm' || mode === 'battle_team' || mode === 'maze_team', seed);
+  if (customMap && mode !== 'nexus' && !String(mode).startsWith('labyrinth')) return buildCustomMap(customMap, mode === 'tdm' || mode === 'battle_team' || mode === 'maze_team' || mode === 'gauntlet', seed);
   if (mode === 'nexus') return generateNexusMap(seed);
   if (mode === 'maze' || mode === 'maze_team') return generateMaze(seed, mode === 'maze_team');
   if (mode === 'labyrinth' || mode === 'labyrinth_team') return generateLabyrinth(seed, THEMES.includes(theme) ? theme : 'classic');

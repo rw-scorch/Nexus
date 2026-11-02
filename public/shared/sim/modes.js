@@ -20,6 +20,8 @@ export function createMode(world) {
   const isNexus = mode === 'nexus';
   const isSandbox = mode === 'sandbox';
   const isBattle = !!(MODES[mode] && MODES[mode].battle);
+  const isRelicRush = mode === 'relic_rush';
+  const isGauntlet = mode === 'gauntlet';
   const isHunt = !!(MODES[mode] && MODES[mode].bosshunt);
   const isWorkshop = !!(MODES[mode] && MODES[mode].workshop);
   const battlePool = TANKS.filter(t => t.level >= 45 && !t.hidden).map(t => t.index);
@@ -28,7 +30,7 @@ export function createMode(world) {
   const rng = world.rng;
 
   const state = {
-    nextBossAt: isSandbox || isBattle || isWorkshop ? 1e12 : world.time + Math.max(60, S.bossInterval * 0.6),
+    nextBossAt: isSandbox || isBattle || isWorkshop ? 1e12 : world.time + 1200,
     nextEventAt: world.time + rng.range(70, 110),
     activeEvents: [],
     lastNullAt: -1e9,
@@ -108,6 +110,10 @@ export function createMode(world) {
         shrine.static = true;
         state.shrines.push({ id: shrine.id, x: shrine.x, y: shrine.y, respawnAt: 0, chamber: null });
       }
+      if (isGauntlet) {
+        state.nextEventAt = 45;
+        announce('Gauntlet begins: elite waves escalate until the 20-minute boss assault.', 'warn');
+      }
     },
 
     initNexus() {
@@ -184,11 +190,26 @@ export function createMode(world) {
         state.alphaAt = now + 120;
         world.addShape('alpha', world.W / 2 + rng.range(-200, 200), world.H / 2 + rng.range(-200, 200));
       }
-      if ((mode === 'ffa' || mode === 'tdm' || mode === 'sandbox' || mode === 'maze' || mode === 'maze_team') && world.tick % 90 === 0) {
+      if ((mode === 'ffa' || mode === 'tdm' || mode === 'sandbox' || mode === 'maze' || mode === 'maze_team' || isRelicRush || isGauntlet) && world.tick % 90 === 0) {
         const crashers = world.ents.filter(e => e.type === 'mob' && !e.dead && e.kind === 'crasher').length;
         for (let i = crashers; i < 10; i++) {
           const a = rng.range(0, Math.PI * 2), d = rng.range(0, 450);
           world.addMob('crasher', world.W / 2 + Math.cos(a) * d, world.H / 2 + Math.sin(a) * d, { team: TEAM.ENV });
+        }
+        if (isRelicRush && world.tick % 450 === 0) {
+          for (let i = 0; i < 3; i++) {
+            const p = world.floorNear(world.W / 2, world.H / 2, 180, 520);
+            if (p) world.addPickup('core', p.x, p.y);
+          }
+          announce('Relic wave detected. Three cores surfaced near the centre.', 'gold');
+        }
+        if (isGauntlet && world.tick % 900 === 0) {
+          const n = Math.min(8, 2 + Math.floor(world.time / 180));
+          for (let i = 0; i < n; i++) {
+            const p = world.floorNear(world.W / 2, world.H / 2, 500, 900);
+            if (p) world.addMob(rng.chance(0.35) ? 'eliteGunner' : 'elite', p.x, p.y, { team: TEAM.ENV });
+          }
+          announce(`Gauntlet wave ${Math.floor(world.time / 30)}: elite reinforcements inbound.`, 'warn');
         }
       }
       if (isLab && world.tick % 15 === 0) this.labyrinthTick();
@@ -279,7 +300,7 @@ export function createMode(world) {
     },
 
     timedBoss() {
-      state.nextBossAt = world.time + S.bossInterval * rng.range(0.8, 1.2);
+      state.nextBossAt = world.time + 1200;
       if (bossesActive().length >= S.maxBosses) return;
       let x = world.W / 2, y = world.H / 2, depth = rng.next();
       if (isLab && state.chambers.length) {

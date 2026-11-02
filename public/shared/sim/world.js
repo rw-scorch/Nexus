@@ -2,7 +2,7 @@ import { MODES, TILE, DT, TEAM, TILES, isSolidTile, MAX_LEVEL, xpForLevel, level
 import { makeRng } from '../rng.js';
 import { generateMap, tileIndexAt } from '../map-generator.js';
 import { TANKS, TANKS_BY_ID, tankByIndex, BASIC_INDEX, SECRET_IDS } from '../tank-registry.js';
-import { SHAPES, MOBS, STRUCTURES, PICKUPS } from '../entity-types.js';
+import { SHAPES, MOBS, STRUCTURES, PICKUPS, RELIC_FORGE } from '../entity-types.js';
 import { BASE } from '../weapon-registry.js';
 import { Grid } from './grid.js';
 import { updateTankWeapons, updateBullet, bulletWall, bulletHitTarget, bulletVsBullet, explodeAt, updateMobWeapons } from './combat.js';
@@ -87,6 +87,19 @@ export class World {
       return false;
     }
     if (a.team < 0 && b.team < 0) return false;
+    return true;
+  }
+
+  forgeRelic(p, key) {
+    const f = RELIC_FORGE[key];
+    if (!p || !f) return false;
+    const level = p.relicUpgrades[key] || 0;
+    if (level >= f.cost.length || p.cores < f.cost[level]) return false;
+    p.cores -= f.cost[level];
+    p.relicUpgrades[key] = level + 1;
+    const t = this.tankOf(p);
+    if (t) this.refreshTank(t);
+    this.emit({ k: 'toast', pid: p.pid, text: `${f.name} upgraded to ${level + 1}`, tone: 'gold' });
     return true;
   }
 
@@ -199,6 +212,7 @@ export class World {
       pid, name: String(name).slice(0, 18) || 'Tank', isBot, token, team: 0,
       tankId: 0, kills: 0, deaths: 0, assists: 0, score: 0, best: 0, cores: 0, bossKills: 0, secrets: new Set(),
       bossRewardMul: 1, lastKills: new Map(), respawnAt: 0, carryLevel: 1, defIdx: BASIC_INDEX,
+      relicUpgrades: { plating: 0, capacitors: 0, impact: 0 },
       healDone: 0, docCdUntil: 0, connected: true, disconnectedAt: 0, brain: isBot ? { difficulty: this.settings.botDifficulty } : null,
       input: { mx: 0, my: 0, ax: 1, ay: 0, fire: false, alt: false, ability: false, seq: 0 },
       deathX: 0, deathY: 0, killerId: 0, stats: { shots: 0, dmg: 0 },
@@ -241,19 +255,23 @@ export class World {
 
   refreshTank(t, fill = false) {
     const d = t.def, st = t.stats, L = t.level;
+    const ru = t.player.relicUpgrades || {};
+    const plating = 1 + 0.08 * (ru.plating || 0);
+    const capacitors = 1 + 0.06 * (ru.capacitors || 0);
+    const impact = 1 + 0.10 * (ru.impact || 0);
     const frac = t.maxHp > 0 ? t.hp / t.maxHp : 1;
     t.r = BASE.radius * d.stats.size * (1 + 0.009 * (L - 1));
-    t.maxHp = (100 + 3.4 * (L - 1)) * d.stats.hp * (1 + 0.14 * st[1]) * (t.hpMul || 1);
+    t.maxHp = (100 + 3.4 * (L - 1)) * d.stats.hp * (1 + 0.14 * st[1]) * plating * (t.hpMul || 1);
     t.hp = fill ? t.maxHp : Math.max(1, frac * t.maxHp);
     t.regen = t.maxHp * (0.003 + 0.004 * st[0]);
-    t.bodyDmg = d.stats.bodyDmg * (1 + 0.16 * st[2]);
+    t.bodyDmg = d.stats.bodyDmg * (1 + 0.16 * st[2]) * impact;
     t.maxSpeed = 245 * d.stats.speed * (1 + 0.055 * st[7]) * (1 - 0.0042 * (L - 1));
     t.accel = d.stats.accel;
     t.fov = d.stats.fov * (1 + 0.004 * (L - 1));
     t.bSpeed = 1 + 0.07 * st[3];
     t.bPen = 1 + 0.12 * st[4];
     t.bDmg = (1 + 0.075 * st[5]) * (1 + 0.006 * (L - 1));
-    t.bReload = 1 - 0.065 * st[6];
+    t.bReload = (1 - 0.065 * st[6]) / capacitors;
     t.armor = d.bodyFx.armor || 0;
     t.mass = 1 + (d.stats.hp - 1) * 0.6 + (d.stats.size - 1);
     const guns = t.swapped && d.alt ? d.alt : d.guns;
