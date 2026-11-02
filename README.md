@@ -25,7 +25,7 @@ One Cloudflare Worker serves the client and runs the game server. Nothing else t
    npm test
    git add . && git commit -m "Nexus: Infinite Warfare" && git push
    ```
-3. **Connect Cloudflare.** On dash.cloudflare.com, open Workers & Pages, choose Create, then import a repository from GitHub and pick this repo. Leave the build command empty. The deploy command is `npx wrangler deploy`. Cloudflare reads `wrangler.toml`, which sets up the Worker, the static assets and the `GameRoom` Durable Object.
+3. **Connect Cloudflare.** On dash.cloudflare.com, open Workers & Pages, choose Create, then import a repository from GitHub and pick this repo. The build command may be left empty, or set to `npm run build` for a dry-run deployment validation. The deploy command is `npx wrangler deploy`. Cloudflare reads `wrangler.toml`, which sets up the Worker, the static assets and the `GameRoom` Durable Object. The repository pins the build to Node.js 22.
 4. **Open your game.** Cloudflare gives you an address like `https://nexus-infinite-warfare.<you>.workers.dev`. Open it, press Play. Check `https://.../health` returns `{"ok":true,...,"platform":"cloudflare"}`.
 
 Every `git push` redeploys. Durable Objects with SQLite storage work on the Workers Free plan. Each running room counts compute time while players are connected; rooms stop their game loop 60 seconds after the last player leaves.
