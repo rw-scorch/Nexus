@@ -427,6 +427,7 @@ export class Hud {
           <button class="btn" data-a="settings">Settings</button>
           <button class="btn" data-a="help">Controls and help</button>
           <button class="btn gold" data-a="forge">Relic Forge</button>
+          <div class="row"><button class="btn small" data-a="sq" data-o="hold">Hold guards</button><button class="btn small" data-a="sq" data-o="follow">Follow</button><button class="btn small red" data-a="sq" data-o="charge">Charge</button></div>
           <button class="btn danger" data-a="leave">Leave match</button>
         </div>`;
     }

@@ -352,7 +352,8 @@ export class World {
   }
 
   addMob(kind, x, y, opts = {}) {
-    const m = MOBS[kind];
+    const m = opts.def || MOBS[kind];
+    if (!m) return null;
     if (this.counts.mob >= MAX_MOBS && !opts.force) return null;
     const scale = opts.scale || 1;
     return this.add({
@@ -365,6 +366,7 @@ export class World {
 
   addStruct(kind, x, y, team, opts = {}) {
     const s = STRUCTURES[kind];
+    if (!s) return null;
     const hp = opts.hp || s.hp || 1000;
     return this.add({
       type: 'struct', kind, x, y, r: s.r, hp, maxHp: hp, team, def: s, armor: opts.armor || 0.2, mass: 999, static: true,

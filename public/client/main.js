@@ -261,6 +261,7 @@ class App {
       case 'tu': this.send({ t: 'tu', k: d.k }); break;
       case 'donate': this.send({ t: 'don' }); break;
       case 'forge': this.send({ t: 'rf', k: d.k }); break;
+      case 'sq': this.send({ t: 'sq', o: d.o }); break;
       case 'respawn': this.send({ t: 'r' }); break;
       case 'leave': this.leave(); break;
       case 'close': this.hud.closeDrawer(); break;

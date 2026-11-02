@@ -1,6 +1,6 @@
 # Nexus: Infinite Warfare
 
-Browser multiplayer tank game with accounts, a shop, admin tools, a tank builder and a map builder. Authoritative server, 365+ tanks that follow the arras.io class tree plus 100 Frontier/Smasher expansion tanks, 20 bosses, Nexus Siege, Relic Rush, Gauntlet, Battle mode with no leveling, arras-style Maze maps, procedural Labyrinths in six themes, bots, touch controls.
+Browser multiplayer tank game with accounts, a shop, admin tools, a tank builder and a map builder. Authoritative server, 377 tanks with distinct signature weapons, 20 bosses, Nexus Siege, Relic Rush, Gauntlet, ten new event modes, Safe Invasion squadron combat, Battle mode with no leveling, arras-style Maze maps, procedural Labyrinths in ten themes, bots, touch controls.
 
 The game is two programs:
 
@@ -101,7 +101,8 @@ The importer parses the upstream files with `acorn` and reads them as data. It n
 - **Redeem codes**: the admin code turns an account into an admin. Only its SHA-256 hash is in `server/accounts.js`; to change the code, replace `ADMIN_CODE_SHA256` with the hash of a new one. Admins can also create coin and XP codes.
 - **Which games run**: Battle is always on, plus one random mode that changes every 2 hours. Everything else must be started by an admin from the Admin panel (mode, bots, map, optional room code), and stopped there too. The server picks the mode for each room, so a modified client cannot open other games. Offline practice in the browser can still use any mode. Set `OPEN_ROOMS=1` on a server to allow any room code again.
 - **Map builder** (admins): paint walls, breakable walls, crystal, vines, team bases and spawns with optional mirroring, save, then start a game on that map. Custom maps work in Arena, Team Arena, Battle, Team Battle, Boss Hunt, Workshop and Sandbox.
-- **Tank Builder**: design a tank from up to 16 barrel parts (bullets, drones, traps, swarms, beams, missiles, decoration) with copies around the body and mirroring. Play it in Workshop or Sandbox games, or test it offline. The server caps barrels, drones and damage.
+- **Tank Builder**: design a tank from up to 16 barrel parts (bullets, drones, traps, swarms, beams, missiles, decoration) with copies around the body and mirroring. The behavior script accepts commands such as `home`, `missile`, `pierce`, `bounce`, `split`, `chain`, `siege`, `intercept` and `armed`, compiling them into server-validated projectile behavior. Play it in Workshop, Sandbox or Safe Invasion games, or test it offline.
+- **Safe Invasion**: custom maps become buildable vaults with destructible guard posts and guard tanks. Upload a custom tank design to configure your guards, then issue Hold, Follow or Charge orders to your squadron and crack the opposing safe.
 - **Boss Hunt**: one player becomes a random boss (health scales with player count). Whoever lands the killing blow becomes the next boss.
 - All bosses have a quarter of their listed health (`BOSS_HP_SCALE` in `shared/sim/bosses.js`).
 
