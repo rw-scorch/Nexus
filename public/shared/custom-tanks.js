@@ -3,8 +3,16 @@ import { barrel } from './nexus-tanks.js';
 export const PART_KINDS = ['bullet', 'drone', 'trap', 'swarm', 'minion', 'beam', 'shell', 'deco'];
 export const BODIES = ['circle', 'square', 'tri', 'pent', 'hex', 'octagon'];
 export const MAX_GUNS = 24;
+export const SCRIPT_COMMANDS = ['home', 'pierce', 'explode', 'split', 'bounce', 'chain', 'siege', 'orbit', 'wave', 'reverse', 'missile', 'intercept', 'pull', 'heal', 'armed'];
 
 const clamp = (v, lo, hi, d) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
+
+export function compileScript(source = '') {
+  const words = String(source).toLowerCase().match(/[a-z]+/g) || [];
+  const fx = {};
+  for (const word of words) if (SCRIPT_COMMANDS.includes(word)) fx[word] = Math.min(3, (fx[word] || 0) + 1);
+  return fx;
+}
 
 export function cleanDesign(d = {}) {
   const parts = (Array.isArray(d.parts) ? d.parts : []).slice(0, 16).map(p => ({
@@ -18,12 +26,14 @@ export function cleanDesign(d = {}) {
     name: String(d.name || 'Custom Tank').replace(/[^\w \-.']/g, '').trim().slice(0, 20) || 'Custom Tank',
     body: BODIES.includes(d.body) ? d.body : 'circle',
     spin: clamp(d.spin, 0, 3, 0),
+    script: String(d.script || '').replace(/[^\w\s,;:+\-]/g, '').slice(0, 240),
     parts
   };
 }
 
 export function buildCustomRaw(design) {
   const d = cleanDesign(design);
+  const scriptedFx = compileScript(d.script);
   const guns = [];
   let drones = 0;
   for (const p of d.parts) {
@@ -36,7 +46,7 @@ export function buildCustomRaw(design) {
     for (const c of copies) {
       if (guns.length >= MAX_GUNS) break;
       if (p.k === 'deco') { guns.push(barrel(p.L, p.W, p.asp, p.X, c.Y, c.A, 0)); continue; }
-      const props = { k: p.k, r: p.r, dm: p.dm, sp: p.sp, s: p.k === 'beam' ? 0 : 0.04, rec: p.k === 'beam' ? 0.5 : 1 };
+      const props = { k: p.k, r: p.r, dm: p.dm, sp: p.sp, s: p.k === 'beam' ? 0 : 0.04, rec: p.k === 'beam' ? 0.5 : 1, fx: { ...scriptedFx } };
       if (p.k === 'drone' || p.k === 'minion') {
         if (drones >= 16) continue;
         props.max = Math.min(4, 16 - drones);
@@ -54,11 +64,13 @@ export function buildCustomRaw(design) {
   const live = guns.filter(g => !g.deco).length;
   return {
     id: 'custom', name: d.name, level: 60, body: d.body, spin: d.spin, guns,
-    stats: { hp: 1, speed: Math.max(0.72, 1 - 0.012 * Math.max(0, live - 4)), fov: 1.1 }
+    stats: { hp: 1, speed: Math.max(0.72, 1 - 0.012 * Math.max(0, live - 4)), fov: 1.1 },
+    tip: d.script ? `Programmable profile: ${d.script}` : 'A player-programmed tank with modular weapons.'
   };
 }
 
 export const STARTER_DESIGN = {
   name: 'My Tank', body: 'circle', spin: 0,
+  script: 'home',
   parts: [{ k: 'bullet', L: 20, W: 8, asp: 1, X: 0, Y: 5.5, A: 0, D: 0, r: 1, dm: 0.8, sp: 1, n: 1, m: true }]
 };

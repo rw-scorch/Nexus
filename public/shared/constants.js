@@ -1,4 +1,4 @@
-export const PROTOCOL_VERSION = 5;
+export const PROTOCOL_VERSION = 6;
 export const TICK_RATE = 30;
 export const DT = 1 / TICK_RATE;
 export const SNAPSHOT_EVERY = 2;
@@ -53,11 +53,21 @@ export const MODES = {
   bosshunt: { name: 'Boss Hunt', teams: false, battle: true, bosshunt: true, desc: 'One player is a random boss. Whoever kills it becomes the next boss.' },
   relic_rush: { name: 'Relic Rush', teams: false, desc: 'Relic cores appear in waves. Bank cores at the centre, but every deposit marks you for hunters.' },
   gauntlet: { name: 'Gauntlet', teams: true, desc: 'Two teams fight through escalating elite waves and a timed boss assault.' },
+  infection: { name: 'Infection', teams: true, desc: 'One infected tank spreads the outbreak; survivors build a cure by hunting it.' },
+  bounty: { name: 'Bounty Circuit', teams: false, desc: 'A rotating marked target earns double rewards while every hunter gets a trail.' },
+  convoy: { name: 'Convoy', teams: true, desc: 'Escort a moving armored convoy through hostile territory.' },
+  relay: { name: 'Relay', teams: true, desc: 'Capture linked relay towers to push your team front forward.' },
+  arena_rumble: { name: 'Arena Rumble', teams: false, battle: true, desc: 'Every minute the arena mutates with a new hazard.' },
+  titanfall: { name: 'Titanfall', teams: true, desc: 'Teams charge a shared titan meter and unleash a controllable titan.' },
+  blackout: { name: 'Blackout', teams: false, desc: 'Visibility collapses outside your tank radar and shots reveal you.' },
+  salvage: { name: 'Salvage Run', teams: false, desc: 'Recover wreckage from dangerous zones and bank it at extraction.' },
+  safe_invasion: { name: 'Safe Invasion', teams: true, safe: true, desc: 'Build a custom safe, place guards, then command a squadron into enemy vaults.' },
+  squadron: { name: 'Squadron Command', teams: true, battle: true, safe: true, desc: 'Your custom guard tanks fight under direct formation orders.' },
   workshop: { name: 'Workshop', teams: false, workshop: true, desc: 'Build your own tank and test it at level 60.' },
   sandbox: { name: 'Sandbox', teams: false, desc: 'Pick any tank, jump to max level and summon bosses.' }
 };
 
-export const THEMES = ['classic', 'crystal', 'industrial', 'overgrown', 'void', 'endless'];
+export const THEMES = ['classic', 'crystal', 'industrial', 'overgrown', 'void', 'endless', 'sunken', 'neon', 'volcanic', 'clockwork'];
 
 export const DEFAULT_SETTINGS = {
   friendlyFire: false,

@@ -22,6 +22,7 @@ export function createMode(world) {
   const isBattle = !!(MODES[mode] && MODES[mode].battle);
   const isRelicRush = mode === 'relic_rush';
   const isGauntlet = mode === 'gauntlet';
+  const isSafe = mode === 'safe_invasion' || mode === 'squadron';
   const isHunt = !!(MODES[mode] && MODES[mode].bosshunt);
   const isWorkshop = !!(MODES[mode] && MODES[mode].workshop);
   const battlePool = TANKS.filter(t => t.level >= 45 && !t.hidden).map(t => t.index);
@@ -43,7 +44,11 @@ export function createMode(world) {
     fortress: null,
     shrines: [],
     bossPid: 0,
-    bossPickAt: 6
+    bossPickAt: 6,
+    safes: [],
+    guards: [],
+    orders: new Map(),
+    relayScore: [0, 0]
   };
 
   const shapeTarget = isBattle ? 36 : isWorkshop ? 90 : isLab ? (map.theme === 'endless' ? 300 : 190) : isNexus ? 170 : 250;
@@ -114,6 +119,48 @@ export function createMode(world) {
         state.nextEventAt = 45;
         announce('Gauntlet begins: elite waves escalate until the 20-minute boss assault.', 'warn');
       }
+      if (isSafe) this.initSafe();
+      if (mode === 'relay') {
+        for (const [i, team] of [TEAM.NEUTRAL, TEAM.NEUTRAL, TEAM.NEUTRAL].entries()) {
+          const x = (map.w * (0.25 + i * 0.25)) * TILE;
+          const relay = world.addStruct('relay', x, world.H / 2, team, { hp: 2400, armor: 0.15 });
+          state.safes.push({ team: i, vaultId: relay.id, postIds: [], guards: [], breach: 0 });
+        }
+        announce('Relay towers are live. Hold the chain to push the front.', 'info');
+      }
+      if (mode === 'convoy') {
+        const convoy = world.addStruct('vault', world.W / 2, world.H / 2, TEAM.NEUTRAL, { hp: 12000, armor: 0.25 });
+        state.fortress = { ids: [convoy.id], x: convoy.x, y: convoy.y, convoy: true };
+        announce('The convoy is moving. Escort it through the centre.', 'info');
+      }
+    },
+
+    initSafe() {
+      for (let team = 0; team < 2; team++) {
+        const x = team === 0 ? 9 * TILE : (map.w - 9) * TILE;
+        const y = world.H / 2;
+        const vault = world.addStruct('vault', x, y, team, { hp: 18000, armor: 0.3 });
+        const relays = [-1, 0, 1].map((dy, i) => world.addStruct('guardPost', x + (team ? -1 : 1) * 150, y + dy * 190, team, { hp: 1800, armor: 0.18, slot: i }));
+        const guards = relays.map((post, i) => {
+          const pos = { x: post.x + (team ? -90 : 90), y: post.y };
+          const g = world.addMob('guardTank', pos.x, pos.y, { team, ownerId: 0, slot: i });
+          if (g) g.home = { x: pos.x, y: pos.y };
+          return g;
+        }).filter(Boolean);
+        state.safes.push({ team, vaultId: vault.id, postIds: relays.map(r => r.id), guards: guards.map(g => g.id), breach: 0 });
+      }
+      announce('Safe Invasion online: build your guard squadron, then breach the enemy vault.', 'gold');
+    },
+
+    squadronOrder(p, order) {
+      if (!isSafe || !p || !['hold', 'follow', 'charge'].includes(order)) return false;
+      state.orders.set(p.team, order);
+      for (const safe of state.safes) if (safe.team === p.team) for (const id of safe.guards) {
+        const g = world.get(id);
+        if (g) g.squadOrder = order;
+      }
+      world.emit({ k: 'toast', pid: p.pid, text: `Squadron order: ${order}.`, tone: 'info' });
+      return true;
     },
 
     initNexus() {
@@ -214,6 +261,25 @@ export function createMode(world) {
       }
       if (isLab && world.tick % 15 === 0) this.labyrinthTick();
       if (isNexus) this.nexusTick(dt);
+      if (isSafe) this.safeTick();
+      if (mode === 'blackout' && world.tick % 30 === 0) world.global.darkness = { x: world.W / 2, y: world.H / 2, r: world.W, until: now + 2.2 };
+      if (mode === 'salvage' && world.tick % 450 === 0) {
+        for (let i = 0; i < 5; i++) {
+          const p = world.randomFloor(rng, 60, 1);
+          world.addPickup('credits', p.x, p.y, { amount: 120 });
+        }
+        announce('Salvage drop detected. Bank the wreckage before the guards arrive.', 'gold');
+      }
+      if (mode === 'arena_rumble' && world.tick % 900 === 0) {
+        const p = world.randomFloor(rng, 60, 1);
+        world.addHazard('shock', p.x, p.y, { r: 180, dps: 35, dur: 8, team: TEAM.ENV });
+        announce('Arena mutation: shock field deployed.', 'warn');
+      }
+      if (mode === 'titanfall' && world.tick % 1800 === 0 && bossesActive().length < S.maxBosses) {
+        const p = world.floorNear(world.W / 2, world.H / 2, 400, 900) || { x: world.W / 2, y: world.H / 2 };
+        this.spawnBossAt(this.pickBoss(0.7), p.x, p.y, 'titanfall');
+        announce('Titanfall: an ancient titan has entered the arena.', 'boss');
+      }
       if (!isSandbox && !isBattle && !isWorkshop && now >= state.nextBossAt) this.timedBoss();
       if (!isSandbox && !isBattle && !isWorkshop && now >= state.nextEventAt) this.startEvent();
       if (isHunt && world.tick % 15 === 0) this.huntTick();
@@ -231,6 +297,27 @@ export function createMode(world) {
         const f = state.fortress;
         state.fortress = null;
         if (bossesActive().length < S.maxBosses) world.after(4, () => this.spawnBossAt(this.pickBoss(0.5), f.x, f.y, 'fortress'));
+      }
+    },
+
+    safeTick() {
+      for (const safe of state.safes) {
+        const order = state.orders.get(safe.team) || 'hold';
+        const owner = [...world.players.values()].find(p => p.team === safe.team && p.tankId);
+        const leader = owner ? world.tankOf(owner) : null;
+        const enemySafe = state.safes.find(s => s.team !== safe.team);
+        const target = enemySafe ? world.get(enemySafe.vaultId) : null;
+        for (const id of safe.guards) {
+          const g = world.get(id);
+          if (!g) continue;
+          if (order === 'follow' && leader) { g.home.x = leader.x; g.home.y = leader.y; }
+          else if (order === 'charge' && target) { g.home.x = target.x; g.home.y = target.y; }
+          g.squadOrder = order;
+        }
+        if (target && target.hp < target.maxHp && safe.breach === 0) {
+          safe.breach = world.time;
+          announce(`Team ${safe.team + 1} has breached the enemy safe!`, 'warn');
+        }
       }
     },
 
@@ -485,6 +572,24 @@ export function createMode(world) {
     },
 
     customTank(p, def) {
+      if (isSafe) {
+        p.guardDef = def;
+        const playerTank = world.tankOf(p);
+        if (playerTank) world.setTankDef(playerTank, def);
+        const safe = state.safes.find(s => s.team === p.team);
+        if (!safe) return false;
+        let updated = 0;
+        for (const id of safe.guards) {
+          const g = world.get(id);
+          if (!g) continue;
+          g.def = { ...def, ai: 'guard', name: `${def.name} Guard`, speed: 125, hp: 720, maxHp: 720, xp: 180, range: 760, bodyDmg: 1.4, r: 28, color: '#f0b84c' };
+          g.maxHp = g.hp = g.def.hp;
+          g.reload = g.def.guns.map(x => x.d * 0.55 * x.r * 2);
+          updated++;
+        }
+        world.emit({ k: 'toast', pid: p.pid, text: `${updated} guard tanks updated from ${def.name}.`, tone: 'gold' });
+        return true;
+      }
       if (!isSandbox && !isWorkshop) return false;
       p.customDef = def.index;
       p.sandboxDef = def.index;
@@ -533,6 +638,19 @@ export function createMode(world) {
         if (sh) sh.respawnAt = world.time + 300;
         if (sh && sh.chamber !== null) this.wakeChamber(sh.chamber, 'shrine');
         else if (bossesActive().length < S.maxBosses) this.spawnBossAt(this.pickBoss(rng.next()), s.x, s.y, 'shrine');
+        return;
+      }
+      if (isSafe && (s.kind === 'vault' || s.kind === 'guardPost')) {
+        const safe = state.safes.find(x => x.team === s.origTeam);
+        if (safe && s.kind === 'vault') {
+          const winner = 1 - s.origTeam;
+          world.matchOver = { winner, at: world.time, restartAt: world.time + 15, stats: this.matchStats(winner) };
+          announce(`Team ${winner + 1} cracked the enemy safe and wins the invasion.`, 'gold');
+          world.emit({ k: 'matchEnd', winner, stats: world.matchOver.stats });
+        } else if (safe) {
+          safe.postIds = safe.postIds.filter(id => id !== s.id);
+          announce(`A guard post in safe ${s.origTeam + 1} has fallen.`, 'warn');
+        }
         return;
       }
       if (!isNexus) return;

@@ -565,11 +565,11 @@ export function buildCustomMap(cm, teams, seed = 1) {
 }
 
 export function generateMap(mode, seed, theme, customMap = null) {
-  if (customMap && mode !== 'nexus' && !String(mode).startsWith('labyrinth')) return buildCustomMap(customMap, mode === 'tdm' || mode === 'battle_team' || mode === 'maze_team' || mode === 'gauntlet', seed);
+  if (customMap && mode !== 'nexus' && !String(mode).startsWith('labyrinth')) return buildCustomMap(customMap, mode === 'tdm' || mode === 'battle_team' || mode === 'maze_team' || mode === 'gauntlet' || mode === 'infection' || mode === 'convoy' || mode === 'relay' || mode === 'titanfall' || mode === 'safe_invasion' || mode === 'squadron', seed);
   if (mode === 'nexus') return generateNexusMap(seed);
   if (mode === 'maze' || mode === 'maze_team') return generateMaze(seed, mode === 'maze_team');
   if (mode === 'labyrinth' || mode === 'labyrinth_team') return generateLabyrinth(seed, THEMES.includes(theme) ? theme : 'classic');
-  return generateArena(seed, mode === 'tdm' || mode === 'battle_team');
+  return generateArena(seed, mode === 'tdm' || mode === 'battle_team' || mode === 'infection' || mode === 'convoy' || mode === 'relay' || mode === 'titanfall' || mode === 'safe_invasion' || mode === 'squadron');
 }
 
 export function encodeTiles(tiles) {

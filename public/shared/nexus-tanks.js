@@ -1,4 +1,4 @@
-import { EXPANSION_TANKS } from './expansion-tanks.js';
+import { EXPANSION_TANKS, SIGNATURE_TANKS } from './expansion-tanks.js';
 
 const DEG = Math.PI / 180;
 const R3 = v => Math.round(v * 1000) / 1000;
@@ -50,7 +50,8 @@ export const NEXUS_TANKS = [
   { id: 'citadel', name: 'Citadel', level: 60, parents: ['fortress', 'architect'], body: 'hex', ability: 'barrier', tip: 'Six trap walls and a central turret.', stats: { hp: 1.15, speed: 0.9 }, guns: [0, 60, 120, 180, 240, 300].flatMap(a => trapLauncher(a + 30, { fx: { block: 1 }, r: 2.6, sz: 0.9 })), turrets: [{ x: 0, y: 0, s: 0.55, a: 0, arc: 360, layer: 1, guns: [barrel(22, 10, 1, 0, 0, 0, 0, { r: 1.1, dm: 0.6, sp: 1.1, lf: 0.8 })] }] },
   { id: 'thornback', name: 'Thornback', level: 60, parents: ['spike', 'megaSmasher'], smasher: 1, tip: 'Sheds shards when struck. No guns.', bodyFx: { shards: 1 }, stats: { hp: 1.1, bodyDmg: 1.7, speed: 1.05 }, decos: [{ sides: 3, s: 1.08, a: 0, x: 0, y: 0, layer: 0, spin: 1, dark: 1 }, { sides: 3, s: 1.08, a: 60, x: 0, y: 0, layer: 0, spin: 1, dark: 1 }, { sides: 3, s: 1.08, a: 30, x: 0, y: 0, layer: 0, spin: 1, dark: 1 }], guns: [] },
   { id: 'afterburner', name: 'Afterburner', level: 60, parents: ['booster', 'fighter'], body: 'circle', ability: 'dash', tip: 'Extra thrusters and a dash.', stats: { speed: 1.08 }, guns: [barrel(18, 8, 1, 0, 0, 0, 0, { r: 0.9, dm: 0.7 }), ...mirror(14, 8, 1, 0, 0, 135, 0.25, { r: 1, dm: 0.4, pn: 0.6, rec: 2.8, lf: 0.6 }), ...mirror(16, 8, 1, 0, 0, 155, 0.1, { r: 1, dm: 0.4, pn: 0.6, rec: 2.8, lf: 0.6 }), barrel(18, 8, 1, 0, 0, 180, 0.6, { r: 1, dm: 0.4, pn: 0.6, rec: 2.8, lf: 0.6 })] },
-  ...EXPANSION_TANKS
+  ...EXPANSION_TANKS,
+  ...SIGNATURE_TANKS
 ];
 
 export const SECRET_TANKS = [
