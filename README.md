@@ -1,6 +1,6 @@
 # Nexus: Infinite Warfare
 
-Browser multiplayer tank game with accounts, a shop, admin tools, a tank builder and a map builder. Authoritative server, 265 tanks that follow the arras.io class tree (131 classic, 105 Arms Race, 29 Nexus originals), 20 bosses, Nexus Siege, Battle mode with no leveling, arras-style Maze maps, procedural Labyrinths in six themes, bots, touch controls.
+Browser multiplayer tank game with accounts, a shop, admin tools, a tank builder and a map builder. Authoritative server, 365+ tanks that follow the arras.io class tree plus 100 Frontier/Smasher expansion tanks, 20 bosses, Nexus Siege, Relic Rush, Gauntlet, Battle mode with no leveling, arras-style Maze maps, procedural Labyrinths in six themes, bots, touch controls.
 
 The game is two programs:
 
@@ -25,7 +25,7 @@ One Cloudflare Worker serves the client and runs the game server. Nothing else t
    npm test
    git add . && git commit -m "Nexus: Infinite Warfare" && git push
    ```
-3. **Connect Cloudflare.** On dash.cloudflare.com, open Workers & Pages, choose Create, then import a repository from GitHub and pick this repo. Leave the build command empty. The deploy command is `npx wrangler deploy`. Cloudflare reads `wrangler.toml`, which sets up the Worker, the static assets and the `GameRoom` Durable Object.
+3. **Connect Cloudflare.** On dash.cloudflare.com, open Workers & Pages, choose Create, then import a repository from GitHub and pick this repo. The build command may be left empty, or set to `npm run build` for a dry-run deployment validation. The deploy command is `npx wrangler deploy`. Cloudflare reads `wrangler.toml`, which sets up the Worker, the static assets and the `GameRoom` Durable Object. The repository pins the build to Node.js 22.
 4. **Open your game.** Cloudflare gives you an address like `https://nexus-infinite-warfare.<you>.workers.dev`. Open it, press Play. Check `https://.../health` returns `{"ok":true,...,"platform":"cloudflare"}`.
 
 Every `git push` redeploys. Durable Objects with SQLite storage work on the Workers Free plan. Each running room counts compute time while players are connected; rooms stop their game loop 60 seconds after the last player leaves.
@@ -127,9 +127,10 @@ The importer parses the upstream files with `acorn` and reads them as data. It n
 
 ### Content
 
-- **Tanks** (`shared/tank-registry.js`): the arras.io class tree. Basic upgrades at level 15 to Twin, Sniper, Machine Gun, Flank Guard, Director, Pounder, Trapper or Desmos, then on through levels 30, 45 and 60. Barrel positions, sizes, trapezoid shapes, auto turrets and weapon numbers come from `shared/data/arras-tanks.js`, which is generated from Open Source Arras (MIT, see `THIRD_PARTY_NOTICES.md`). Arms Race tanks sit at level 60. Nexus originals (`shared/nexus-tanks.js`, orange in the tree) add energy beams, chain lightning, gravity pulls and homing missiles.
+- **Tanks** (`shared/tank-registry.js`): the arras.io class tree plus 100 generated expansion tanks in `shared/expansion-tanks.js`. Basic upgrades at level 15 to Twin, Sniper, Machine Gun, Flank Guard, Director, Pounder, Trapper or Desmos, then on through levels 30, 45 and 60. Barrel positions, sizes, trapezoid shapes, auto turrets and weapon numbers come from `shared/data/arras-tanks.js`, which is generated from Open Source Arras (MIT, see `THIRD_PARTY_NOTICES.md`). Arms Race tanks sit at level 60. Nexus originals (`shared/nexus-tanks.js`, orange in the tree) add energy beams, chain lightning, gravity pulls and homing missiles.
 - **Battle and Team Battle**: no leveling. You spawn at level 60 with 42 stat points and any tank you pick in the menu (or with the Tanks button / B key in game).
-- **Progression**: levels 15, 30, 45 and 60 unlock the next upgrades; 8 stat upgrades; relic cores fund Nexus Siege team upgrades. Sandbox mode can select any tank.
+- **Progression**: levels 15, 30, 45 and 60 unlock the next upgrades; 8 stat upgrades; relic cores can fund Nexus Siege team upgrades or three in-match Relic Forge paths (Plating, Capacitors and Impact). Smasher now has additional level 45 and 60 impact-focused branches. Sandbox mode can select any tank.
+- **Modes**: Relic Rush periodically surfaces core pickups near the centre, while Gauntlet escalates elite waves for two teams. Standard progression modes now schedule timed bosses on a fixed 20-minute cadence.
 - **Bosses** (`shared/boss-registry.js`): 20 data-defined bosses composed from 26 attack primitives, each with phases, telegraphed attacks and, for seven of them, destructible or moving components.
 - **Maps** (`shared/map-generator.js`): seeded maze plus rooms, braided for alternate routes, sealed secret rooms behind breakable walls, boss chambers with shrines, validated by flood fill before use.
 

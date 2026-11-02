@@ -1,7 +1,7 @@
 import { STAT_NAMES, STAT_MAX, MODES, TEAM_COLORS, MAX_LEVEL } from '../shared/constants.js';
 import { TANKS, TANKS_BY_ID, TANK_FAMILIES, tankByIndex, ABILITIES, SECRET_IDS } from '../shared/tank-registry.js';
 import { BOSSES } from '../shared/boss-registry.js';
-import { UPGRADES } from '../shared/entity-types.js';
+import { UPGRADES, RELIC_FORGE } from '../shared/entity-types.js';
 import { previewTank } from './draw.js';
 import { drawTree, hitTest, scrollToNode, TIER_COLORS } from './tree.js';
 import { EVO_KEYS } from './input.js';
@@ -75,7 +75,7 @@ export class Hud {
       const b = e.target.closest('[data-a]');
       if (!b) return;
       const a = b.dataset.a;
-      if (a === 'players' || a === 'team' || a === 'sandbox' || a === 'pause' || a === 'tree' || a === 'pick') this.toggle(a);
+      if (a === 'players' || a === 'team' || a === 'sandbox' || a === 'pause' || a === 'forge' || a === 'tree' || a === 'pick') this.toggle(a);
       else if (a === 'treefam') { this.treeRoot = b.dataset.k; this.cache.tree = null; this.renderDrawer(); }
       else this.actions.onAction(a, b.dataset);
     });
@@ -206,7 +206,7 @@ export class Hud {
     this.renderTop(s);
     if (s.mo) this.renderMatchEnd(s.mo);
     else if (this.cache.mo) { this.cache.mo = null; this.el('h-overlay').innerHTML = ''; }
-    if (this.drawer === 'team') this.renderDrawer();
+    if (this.drawer === 'team' || this.drawer === 'forge' || this.drawer === 'pause') this.renderDrawer();
     this.set('h-net', ctx.offline ? `Offline &middot; ${this.fps | 0} fps` : (store.settings.showNet ? `Ping ${ctx.rtt | 0} ms &middot; ${this.fps | 0} fps${ctx.rtt > 250 ? ' &middot; poor connection' : ''}` : ''));
     if (performance.now() - (this.feedAt || 0) > 1000) { this.feedAt = performance.now(); this.renderFeed(); }
   }
@@ -403,6 +403,14 @@ export class Hud {
           return `<div class="up-row"><div><b>${esc(u.name)}</b> ${u.max < 50 ? `<span class="muted">${lvl}/${u.max}</span>` : ''}<div class="muted" style="font-size:13px">${esc(u.desc)}</div></div><button class="btn small" data-a="tu" data-k="${k}" ${maxed || cd || (mi.cr ?? 0) < cost ? 'disabled' : ''}>${maxed ? 'Max' : cd ? `${mi.ecd}s` : cost}</button></div>`;
         }).join('')}
         <div class="up-row"><div><b>Donate a relic core</b><div class="muted" style="font-size:13px">Convert 1 of your cores into 150 team credits</div></div><button class="btn small" data-a="donate" ${this.meStats && this.meStats.co > 0 ? '' : 'disabled'}>Donate</button></div>`;
+    } else if (this.drawer === 'forge') {
+      const ru = (this.meStats && this.meStats.ru) || {};
+      box.innerHTML = `${close}<h2 class="title">Relic Forge</h2><p>Spend relic cores on permanent in-match upgrades.</p>
+        ${Object.entries(RELIC_FORGE).map(([k, f]) => {
+          const lvl = ru[k] || 0;
+          const cost = f.cost[lvl];
+          return `<div class="up-row"><div><b>${esc(f.name)}</b> <span class="muted">${lvl}/${f.cost.length}</span><div class="muted" style="font-size:13px">${esc(f.desc)}</div></div><button class="btn small" data-a="forge" data-k="${k}" ${cost === undefined || (this.meStats?.co || 0) < cost ? 'disabled' : ''}>${cost === undefined ? 'Max' : cost}</button></div>`;
+        }).join('')}`;
     } else if (this.drawer === 'sandbox') {
       if (box.dataset.k === 'sandbox') return;
       box.dataset.k = 'sandbox';
@@ -418,6 +426,7 @@ export class Hud {
           <button class="btn" data-a="statspin">${this.statsPinned ? 'Hide' : 'Always show'} stat panel</button>
           <button class="btn" data-a="settings">Settings</button>
           <button class="btn" data-a="help">Controls and help</button>
+          <button class="btn gold" data-a="forge">Relic Forge</button>
           <button class="btn danger" data-a="leave">Leave match</button>
         </div>`;
     }

@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server/node-server.js",
     "dev": "node server/node-server.js",
+    "build": "node --check server/worker.js",
     "test": "node --test --test-concurrency=1 \"tests/*.test.js\"",
     "validate": "node tools/validate.js",
     "cf:dev": "wrangler dev",

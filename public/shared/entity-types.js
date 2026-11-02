@@ -68,6 +68,12 @@ export const UPGRADES = {
   antiBoss: { name: 'Anti-Boss Battery', max: 1, cost: [600], desc: 'Turrets deal double damage to bosses' }
 };
 
+export const RELIC_FORGE = {
+  plating: { name: 'Relic Plating', cost: [3, 6, 10], desc: '+8% maximum health per level' },
+  capacitors: { name: 'Relic Capacitors', cost: [3, 6, 10], desc: '+6% reload speed per level' },
+  impact: { name: 'Relic Impact', cost: [4, 8, 14], desc: '+10% body damage per level' }
+};
+
 export const ACHIEVEMENTS = [
   { id: 'first_blood', name: 'First Elimination', desc: 'Destroy an enemy tank', ev: 'kill', n: 1 },
   { id: 'hunter10', name: 'Tank Hunter', desc: 'Destroy 25 enemy tanks', ev: 'kill', n: 25 },

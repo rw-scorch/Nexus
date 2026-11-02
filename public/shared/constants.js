@@ -51,6 +51,8 @@ export const MODES = {
   battle: { name: 'Battle', teams: false, battle: true, desc: 'No leveling. Spawn at level 60 with any tank you like and fight.' },
   battle_team: { name: 'Team Battle', teams: true, battle: true, desc: 'No leveling, two teams. Pick any tank and fight.' },
   bosshunt: { name: 'Boss Hunt', teams: false, battle: true, bosshunt: true, desc: 'One player is a random boss. Whoever kills it becomes the next boss.' },
+  relic_rush: { name: 'Relic Rush', teams: false, desc: 'Relic cores appear in waves. Bank cores at the centre, but every deposit marks you for hunters.' },
+  gauntlet: { name: 'Gauntlet', teams: true, desc: 'Two teams fight through escalating elite waves and a timed boss assault.' },
   workshop: { name: 'Workshop', teams: false, workshop: true, desc: 'Build your own tank and test it at level 60.' },
   sandbox: { name: 'Sandbox', teams: false, desc: 'Pick any tank, jump to max level and summon bosses.' }
 };
@@ -64,7 +66,7 @@ export const DEFAULT_SETTINGS = {
   botDifficulty: 'normal',
   deathRule: 'keepThird',
   theme: 'classic',
-  bossInterval: 150,
+  bossInterval: 1200,
   maxBosses: 2,
   nexusShield: 6000,
   nexusHp: 20000

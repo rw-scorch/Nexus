@@ -12,7 +12,7 @@ const r1 = v => Math.round(v);
 const ang = v => Math.round((v || 0) * 100);
 const pct = (a, b) => Math.max(0, Math.min(100, Math.round((a / (b || 1)) * 100)));
 
-export const CLIENT_TYPES = new Set(['j', 'i', 'u', 'e', 'p', 'lvl', 'sb', 'tu', 'don', 'ping', 'r', 'ct']);
+export const CLIENT_TYPES = new Set(['j', 'i', 'u', 'e', 'p', 'lvl', 'sb', 'tu', 'don', 'rf', 'ping', 'r', 'ct']);
 
 export function sanitizeInput(m) {
   const num = (v, lo, hi, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);
@@ -138,7 +138,7 @@ export function snapshotFor(world, p, extras) {
   } else {
     msg.y = { dead: 1, respawn: Math.max(0, Math.round((p.respawnAt - now) * 10) / 10), killer: p.killerId };
   }
-  msg.me = { k: p.kills, d: p.deaths, as: p.assists, sc: p.score, co: p.cores, bk: p.bossKills, sec: p.secrets.size, team: p.team };
+  msg.me = { k: p.kills, d: p.deaths, as: p.assists, sc: p.score, co: p.cores, bk: p.bossKills, sec: p.secrets.size, team: p.team, ru: p.relicUpgrades };
   if (extras) Object.assign(msg, extras);
   return msg;
 }
