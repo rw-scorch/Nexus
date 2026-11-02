@@ -29,6 +29,7 @@ export const MOBS = {
   playerTurret: { name: 'Deployed Turret', sides: 0, r: 20, hp: 260, speed: 0, ai: 'turret', bodyDmg: 1, xp: 30, color: '#ffffff', range: 700, guns: [gun({ len: 1.8, r: 0.9, dm: 0.55, sp: 1.1 })] },
   emberImp: { name: 'Ember Imp', sides: 3, r: 15, hp: 70, speed: 240, ai: 'chase', bodyDmg: 1.2, xp: 20, color: '#ff8a3d', guns: [] },
   icicle: { name: 'Icicle Sentry', sides: 6, r: 22, hp: 340, speed: 0, ai: 'turret', bodyDmg: 1, xp: 70, color: '#9fe8ff', range: 700, guns: [gun({ len: 1.8, r: 2.4, dm: 0.7, fx: { pierce: 2 } })] }
+  ,guardTank: { name: 'Guard Tank', sides: 6, r: 28, hp: 720, speed: 115, ai: 'guard', bodyDmg: 1.6, xp: 180, color: '#f0b84c', range: 760, armor: 0.12, guns: [gun({ len: 1.8, r: 1.25, dm: 0.85, sp: 1.1, fx: { home: 1 } })] }
 };
 export const MOB_KEYS = Object.keys(MOBS);
 
@@ -39,6 +40,9 @@ export const STRUCTURES = {
   cache: { name: 'Treasure Cache', r: 30, hp: 600, sides: 4 },
   barrel: { name: 'Volatile Barrel', r: 22, hp: 80, sides: 0 },
   shrine: { name: 'Boss Shrine', r: 44, hp: 1500, sides: 8 }
+  ,vault: { name: 'Player Safe', r: 132, hp: 18000, sides: 8 }
+  ,guardPost: { name: 'Guard Post', r: 38, hp: 1800, sides: 6, range: 780, guns: [gun({ len: 2, r: 1.1, dm: 1.1, sp: 1.1, fx: { home: 1 } })] }
+  ,relay: { name: 'Relay Tower', r: 34, hp: 2400, sides: 6 }
 };
 
 export const PICKUPS = {
@@ -52,7 +56,7 @@ export const PICKUPS = {
 export const PICKUP_BY_CODE = Object.fromEntries(Object.entries(PICKUPS).map(([k, v]) => [v.code, k]));
 
 export const ENT = { TANK: 0, BULLET: 1, SHAPE: 2, MOB: 3, BOSS: 4, PART: 5, STRUCT: 6, PICKUP: 7, HAZARD: 8 };
-export const STRUCT_CODES = { nexus: 0, generator: 1, turret: 2, cache: 3, barrel: 4, shrine: 5 };
+export const STRUCT_CODES = { nexus: 0, generator: 1, turret: 2, cache: 3, barrel: 4, shrine: 5, vault: 6, guardPost: 7, relay: 8 };
 export const STRUCT_BY_CODE = Object.fromEntries(Object.entries(STRUCT_CODES).map(([k, v]) => [v, k]));
 export const HAZ = { WARN_CIRCLE: 0, WARN_LINE: 1, LASER: 2, SHOCK: 3, FIELD: 4, GRAVITY: 5, PORTAL: 6, BURN: 7, DARK: 8, BARRIER_WARN: 9 };
 
@@ -98,5 +102,9 @@ export const MAP_THEMES = {
   industrial: { name: 'Industrial', floor: '#1a1a1a', wall: '#45403a', mobs: ['wallTurret', 'sentry'], desc: 'Timed doors, conveyors and wall turrets' },
   overgrown: { name: 'Overgrown', floor: '#121c14', wall: '#2f4a2a', mobs: ['bloomPod', 'crasher'], desc: 'Regrowing vines and slowing moss' },
   void: { name: 'Void', floor: '#100c18', wall: '#36285a', mobs: ['voidWisp', 'eliteGunner'], desc: 'Teleport gates and unstable passages' },
-  endless: { name: 'Endless', floor: '#141418', wall: '#3a3448', mobs: ['crasher', 'sentry', 'voidWisp', 'crystalMite'], desc: 'Huge, mixed regions, more elites' }
+  endless: { name: 'Endless', floor: '#141418', wall: '#3a3448', mobs: ['crasher', 'sentry', 'voidWisp', 'crystalMite'], desc: 'Huge, mixed regions, more elites' },
+  sunken: { name: 'Sunken', floor: '#0d1e26', wall: '#24556a', mobs: ['crystalMite', 'hiveling'], desc: 'Flooded lanes, pressure gates and tide pools' },
+  neon: { name: 'Neon', floor: '#171022', wall: '#5d2f73', mobs: ['voidWisp', 'swarmling'], desc: 'Pulse lanes and overcharged pickups' },
+  volcanic: { name: 'Volcanic', floor: '#24120e', wall: '#71352b', mobs: ['emberImp', 'cannonTurret'], desc: 'Burning vents and collapsing cover' },
+  clockwork: { name: 'Clockwork', floor: '#1b1b16', wall: '#6d6547', mobs: ['sentry', 'wallTurret'], desc: 'Rotating doors, belts and timed kill boxes' }
 };

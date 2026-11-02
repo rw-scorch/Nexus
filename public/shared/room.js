@@ -104,6 +104,7 @@ export class Room {
       case 'tu': if (typeof m.k === 'string') w.logic.teamUpgrade(p, m.k); break;
       case 'don': w.logic.donate(p); break;
       case 'rf': if (typeof m.k === 'string') w.forgeRelic(p, m.k); break;
+      case 'sq': if (typeof m.o === 'string' && w.logic.squadronOrder) w.logic.squadronOrder(p, m.o); break;
       case 'r': if (!p.tankId && w.time >= p.respawnAt && !w.matchOver) w.spawnTank(p); break;
       case 'ct': this.customTank(c, p, m.d); break;
     }

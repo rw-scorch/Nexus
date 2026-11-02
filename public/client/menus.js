@@ -21,7 +21,10 @@ const tileColor = d => d.src === 'secret' ? '#3d4452' : d.src === 'custom' ? '#f
 const SRC_LABEL = { arras: 'Arras class tree', ar: 'Arms Race', nexus: 'Nexus original' };
 const MODE_STYLE = {
   ffa: ['#f14e54', 'FFA'], tdm: ['#00b2e1', 'Teams'], nexus: ['#b57cf0', 'Objective'], maze: ['#e0b400', 'FFA'], maze_team: ['#e0b400', 'Teams'],
-  labyrinth: ['#00c864', 'Explore'], labyrinth_team: ['#00c864', 'Teams'], battle: ['#fc9a4a', 'No leveling'], battle_team: ['#fc9a4a', 'Teams'], sandbox: ['#8b93a3', 'Creative']
+  labyrinth: ['#00c864', 'Explore'], labyrinth_team: ['#00c864', 'Teams'], battle: ['#fc9a4a', 'No leveling'], battle_team: ['#fc9a4a', 'Teams'],
+  relic_rush: ['#f0c84b', 'Relics'], gauntlet: ['#f06a4b', 'Waves'], infection: ['#8be04f', 'Outbreak'], bounty: ['#ffb23d', 'Bounty'],
+  convoy: ['#4fc3f7', 'Escort'], relay: ['#9e7cff', 'Control'], arena_rumble: ['#ff6bd6', 'Hazards'], titanfall: ['#d77bff', 'Titan'],
+  blackout: ['#69758b', 'Stealth'], salvage: ['#65d6a5', 'Loot'], safe_invasion: ['#f7a94b', 'Safe'], squadron: ['#c5d06f', 'Squadron'], sandbox: ['#8b93a3', 'Creative']
 };
 const MODE_FILTERS = [['all', 'All'], ['ffa', 'Free for all'], ['team', 'Teams'], ['battle', 'No leveling']];
 const TIPS = [
@@ -779,11 +782,12 @@ export class Menus {
           <div class="field" style="margin-top:10px"><label>Name</label><input data-bd="name" maxlength="20" value="${esc(d.name)}"></div>
           <div class="row"><div class="field" style="flex:1"><label>Body</label><select data-bd="body">${opt(BODIES, d.body)}</select></div>
           <label class="sl" style="flex:1"><span>Spin <b data-v="spin">${d.spin}</b></span><input type="range" min="0" max="3" step="0.1" value="${d.spin}" data-bd="spin"></label></div>
+          <div class="field"><label>Behavior script</label><textarea data-bd="script" rows="3" maxlength="240" placeholder="home; missile; pierce">${esc(d.script || '')}</textarea><small class="muted">Commands: home, pierce, explode, split, bounce, chain, siege, orbit, wave, reverse, missile, intercept, pull, heal, armed.</small></div>
           <div id="b-stats" class="muted" style="font-size:13px;margin-bottom:10px"></div>
           ${o.ingame ? '<button class="btn primary block" data-act="bspawn">Spawn as this tank</button>' : '<button class="btn primary block" data-act="btest">Test in Workshop (offline)</button>'}
           <div class="row" style="margin-top:8px"><button class="btn green" data-act="bsave" style="flex:1">Save design</button><button class="btn" data-act="bnew" style="flex:1">New</button></div>
           ${store.designs.length ? `<h3>Saved designs</h3>${store.designs.map((x, i) => `<div class="up-row"><span>${esc(x.name)}</span><div class="row" style="gap:6px"><button class="btn small blue" data-act="bload" data-i="${i}">Load</button><button class="btn small danger" data-act="bdrop" data-i="${i}">Delete</button></div></div>`).join('')}` : ''}
-          <p class="muted" style="font-size:12px">Custom tanks are playable in Workshop and Sandbox games, at level 60. Very strong designs are toned down automatically: up to 24 barrels and 16 drones.</p>
+          <p class="muted" style="font-size:12px">Custom tanks are playable in Workshop and Sandbox games, at level 60. Script commands are compiled into weapon behavior; strong designs are still capped at 24 barrels and 16 drones.</p>
         </div>
         <div>
           <div class="row" style="margin-bottom:10px">${['bullet', 'drone', 'trap', 'swarm', 'beam', 'shell', 'deco'].map(k => `<button class="btn small" data-act="badd" data-k="${k}">+ ${k === 'shell' ? 'missile' : k}</button>`).join('')}</div>

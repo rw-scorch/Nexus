@@ -12,7 +12,7 @@ const r1 = v => Math.round(v);
 const ang = v => Math.round((v || 0) * 100);
 const pct = (a, b) => Math.max(0, Math.min(100, Math.round((a / (b || 1)) * 100)));
 
-export const CLIENT_TYPES = new Set(['j', 'i', 'u', 'e', 'p', 'lvl', 'sb', 'tu', 'don', 'rf', 'ping', 'r', 'ct']);
+export const CLIENT_TYPES = new Set(['j', 'i', 'u', 'e', 'p', 'lvl', 'sb', 'tu', 'don', 'rf', 'sq', 'ping', 'r', 'ct']);
 
 export function sanitizeInput(m) {
   const num = (v, lo, hi, d = 0) => (typeof v === 'number' && Number.isFinite(v) ? Math.max(lo, Math.min(hi, v)) : d);

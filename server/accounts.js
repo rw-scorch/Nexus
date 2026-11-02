@@ -4,7 +4,7 @@ import { COSMETICS, SLOTS, findCosmetic, accountLevel } from '../public/shared/c
 const ADMIN_CODE_SHA256 = 'f2cb12faed072c7c326dc5af2ac1feef3346a7c2d67abb30f3e80e1c172dc8cb';
 const ROTATE_MS = 2 * 60 * 60 * 1000;
 const SESSION_MS = 30 * 24 * 3600 * 1000;
-const CUSTOM_MAP_MODES = ['ffa', 'tdm', 'battle', 'battle_team', 'bosshunt', 'workshop', 'sandbox'];
+const CUSTOM_MAP_MODES = ['ffa', 'tdm', 'battle', 'battle_team', 'bosshunt', 'workshop', 'sandbox', 'infection', 'convoy', 'relay', 'titanfall', 'safe_invasion', 'squadron'];
 const enc = new TextEncoder();
 
 const hex = buf => [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
