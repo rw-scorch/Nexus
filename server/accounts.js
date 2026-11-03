@@ -35,7 +35,7 @@ export function featuredMode(now = Date.now(), offset = 0) {
 
 export function publicUser(u) {
   return {
-    name: u.name, xp: u.xp, level: accountLevel(u.xp), coins: u.coins, kills: u.kills, admin: !!u.admin,
+    name: u.name, xp: u.xp, level: Math.max(accountLevel(u.xp), u.level || 1), score: u.score || 0, coins: u.coins, kills: u.kills, admin: !!u.admin,
     owned: u.owned, equip: u.equip, unlocks: u.unlocks, created: u.created
   };
 }
@@ -60,7 +60,7 @@ export class AccountStore {
     if (await this.user(name)) bad('That name is taken', 409);
     const salt = randomToken(12);
     const u = {
-      name, salt, hash: await pbkdf2(pass, salt), xp: 0, coins: 200, kills: 0, created: Date.now(), admin: false,
+      name, salt, hash: await pbkdf2(pass, salt), xp: 0, level: 1, score: 0, coins: 200, kills: 0, created: Date.now(), admin: false,
       owned: ['skin:none', 'trail:basic', 'kill:burst'], equip: { skin: 'none', trail: 'basic', kill: 'burst' }, unlocks: [], redeemed: []
     };
     await this.saveUser(u);
@@ -99,6 +99,8 @@ export class AccountStore {
     const u = await this.user(name);
     if (!u) return null;
     u.xp += Math.max(0, Math.min(5000, Math.round(d.xp || 0)));
+    u.level = Math.max(accountLevel(u.xp), u.level || 1);
+    if (Number.isFinite(d.score)) u.score = Math.max(0, Math.max(u.score || 0, Math.round(d.score)));
     u.coins += Math.max(0, Math.min(800, Math.round(d.coins || 0)));
     u.kills += Math.max(0, Math.min(200, Math.round(d.kills || 0)));
     if (typeof d.unlock === 'string' && /^[a-z0-9_]{2,24}$/i.test(d.unlock) && !u.unlocks.includes(d.unlock)) u.unlocks.push(d.unlock);
@@ -266,6 +268,17 @@ async function route(store, method, path, b, token) {
   if (method === 'POST' && path === '/api/admin/code') return { code: await store.createCode(b) };
   if (method === 'GET' && path === '/api/admin/codes') return { codes: Object.values(await store.kv.list('code:')) };
   if (method === 'POST' && path === '/api/admin/code/delete') { await store.kv.delete(`code:${String(b.code || '').toUpperCase()}`); return { ok: true }; }
+  if (method === 'POST' && path === '/api/admin/hack') {
+    const target = await store.user(String(b.name || '').trim());
+    if (!target) bad('Account not found', 404);
+    const xp = Math.max(0, Math.min(100000000, Math.round(Number(b.xp) || 0)));
+    const score = Math.max(0, Math.min(1000000000, Math.round(Number(b.score) || 0)));
+    if (xp) target.xp += xp;
+    if (score) target.score = Math.max(target.score || 0, score);
+    target.level = Math.max(accountLevel(target.xp), target.level || 1);
+    await store.saveUser(target);
+    return { user: publicUser(target) };
+  }
   bad('Not found', 404);
 }
 

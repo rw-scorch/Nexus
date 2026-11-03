@@ -292,6 +292,7 @@ export class Hud {
 
   objective(s) {
     const y = s.y || {}, mi = s.mi || {};
+    if (mi.obj && ['ffa', 'tdm', 'maze', 'maze_team', 'relic_rush', 'gauntlet', 'infection', 'bounty', 'convoy', 'relay', 'arena_rumble', 'titanfall', 'blackout', 'salvage', 'safe_invasion', 'squadron', 'workshop'].includes(this.mode)) return mi.obj;
     if (y.evo && y.evo.length && !this.battle) return 'Upgrade available. Pick a new tank in the top left.';
     if (y.pts > 0 && y.lv < 4) return 'Spend upgrade points with keys 1-8 or the + buttons.';
     switch (this.mode) {

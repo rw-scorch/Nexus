@@ -827,8 +827,20 @@ export function createMode(world) {
       return false;
     },
 
+    adminHack(p, msg) {
+      if (!p.admin) return false;
+      if (msg.a === 'boss' && Number.isInteger(msg.idx) && BOSSES[msg.idx]) {
+        const t = world.tankOf(p);
+        if (!t || bossesActive().length >= S.maxBosses) return false;
+        const pos = world.floorNear(t.x, t.y, 600, 900) || { x: t.x + 600, y: t.y };
+        spawnBoss(world, BOSSES[msg.idx].key, pos.x, pos.y, { source: 'admin' });
+        return true;
+      }
+      return world.adminHack(p, msg);
+    },
+
     info(p) {
-      const out = { ev: state.activeEvents.map(e => [e.name, Math.max(0, Math.round(e.until - world.time))]) };
+      const out = { ev: state.activeEvents.map(e => [e.name, Math.max(0, Math.round(e.until - world.time))]), obj: MODES[mode] && MODES[mode].objective };
       if (isNexus) {
         out.nx = state.teams.map(tm => {
           const n = world.get(tm.nexusId);
