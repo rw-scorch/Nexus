@@ -104,6 +104,7 @@ export class Room {
       case 'tu': if (typeof m.k === 'string') w.logic.teamUpgrade(p, m.k); break;
       case 'don': w.logic.donate(p); break;
       case 'rf': if (typeof m.k === 'string') w.forgeRelic(p, m.k); break;
+      case 'ah': if (p.admin && w.logic.adminHack) w.logic.adminHack(p, m); break;
       case 'sq': if (typeof m.o === 'string' && w.logic.squadronOrder) w.logic.squadronOrder(p, m.o); break;
       case 'r': if (!p.tankId && w.time >= p.respawnAt && !w.matchOver) w.spawnTank(p); break;
       case 'ct': this.customTank(c, p, m.d); break;
@@ -149,7 +150,7 @@ export class Room {
     if (p.score < a.score) a.score = p.score;
     if (!ds && !dk && !db) return;
     p.awarded = { score: Math.max(p.score, a.score), kills: p.kills, bossKills: p.bossKills };
-    const d = { xp: Math.min(5000, ds * 0.04 + dk * 30 + db * 150), coins: Math.min(800, dk * 8 + Math.floor(ds / 600) + db * 60), kills: dk };
+    const d = { xp: Math.min(5000, ds * 0.04 + dk * 30 + db * 150), score: p.score, coins: Math.min(800, dk * 8 + Math.floor(ds / 600) + db * 60), kills: dk };
     Promise.resolve(this.services.award(p.account, d)).catch(() => {});
   }
 

@@ -90,12 +90,23 @@ export class World {
     return true;
   }
 
+  adminHack(p, msg) {
+    const t = this.tankOf(p);
+    if (!p.admin || !t || !msg || typeof msg.a !== 'string') return false;
+    if (msg.a === 'heal') { t.hp = t.maxHp; return true; }
+    if (msg.a === 'god') { p.adminGod = !p.adminGod; return true; }
+    if (msg.a === 'cores') { p.cores = Math.min(999, p.cores + 10); return true; }
+    if (msg.a === 'level') { this.giveXp(t, Math.max(0, 1000000 - t.xp)); return true; }
+    return false;
+  }
+
   forgeRelic(p, key) {
     const f = RELIC_FORGE[key];
     if (!p || !f) return false;
     const level = p.relicUpgrades[key] || 0;
-    if (level >= f.cost.length || p.cores < f.cost[level]) return false;
-    p.cores -= f.cost[level];
+    const cost = f.cost[level];
+    if (!Number.isInteger(level) || level >= f.cost.length || !Number.isInteger(p.cores) || p.cores < cost) return false;
+    p.cores -= cost;
     p.relicUpgrades[key] = level + 1;
     const t = this.tankOf(p);
     if (t) this.refreshTank(t);
@@ -385,6 +396,7 @@ export class World {
   damage(target, amount, src, opts = {}) {
     if (!target || target.dead || amount <= 0) return 0;
     if (target.type === 'hazard' || target.type === 'pickup' || target.type === 'bullet') return 0;
+    if (target.type === 'tank' && target.player && target.player.adminGod) return 0;
     const attacker = src && (src.type === 'bullet' ? this.get(src.ownerId) || src : src);
     if (target.type === 'tank') {
       if (target.spawnProtect > this.time) return 0;

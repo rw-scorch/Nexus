@@ -532,7 +532,8 @@ export class Menus {
           <div class="bar" style="height:12px;margin:14px 0 4px"><i style="width:${Math.round((u.xp - cur) / Math.max(1, nx - cur) * 100)}%;background:var(--yellow)"></i></div>
           <div class="muted" style="font-size:13px">${u.xp} XP &middot; ${nx - u.xp} to level ${u.level + 1}</div>
           <dl class="kv" style="margin-top:12px"><dt>Coins</dt><dd><b>${u.coins}</b></dd><dt>Kills</dt><dd>${u.kills}</dd><dt>Items owned</dt><dd>${u.owned.length}</dd><dt>Secrets found</dt><dd>${u.unlocks.length}</dd></dl>
-          <p class="muted" style="font-size:12px">XP and coins come from kills, score and boss kills in online matches.</p>
+          <dl class="kv" style="margin-top:12px"><dt>Saved score</dt><dd>${u.score || 0}</dd></dl>
+          <p class="muted" style="font-size:12px">XP, level, score and coins come from kills, score and boss kills in online matches.</p>
         </div>
         <div class="panel"><h3 style="margin-top:0">Go to</h3><div class="links">
           <button class="btn green" data-go="shop">Shop</button>
@@ -645,6 +646,7 @@ export class Menus {
           <button class="btn yellow" data-act="adcode">Create code</button>
           <div id="ad-codes" class="muted" style="margin-top:10px"></div>
         </div>
+        <div class="panel"><h3 style="margin-top:0">Admin hacks</h3><p class="muted">In a running room, authenticated admins may use server-authorized controls: heal, god, cores, level, or boss. Guests cannot invoke them.</p></div>
       </div>`;
   }
 

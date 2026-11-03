@@ -44,6 +44,22 @@ test('relic forge spends cores and applies Smasher-relevant impact upgrades', ()
   assert.equal(p.cores, 0);
   assert.ok(t.bodyDmg > before);
   assert.equal(w.forgeRelic(p, 'impact'), false);
+  p.cores = 99;
+  assert.equal(w.forgeRelic(p, 'unknown'), false);
+});
+
+test('admin hacks are authoritative and non-admins cannot use them', () => {
+  const w = new World({ mode: 'sandbox', seed: 12, settings: { bots: 0 } });
+  const admin = w.addPlayer({ name: 'admin' });
+  const guest = w.addPlayer({ name: 'guest' });
+  admin.admin = true;
+  const t = w.tankOf(admin);
+  t.hp = 1;
+  assert.equal(w.logic.adminHack(admin, { a: 'heal' }), true);
+  assert.equal(t.hp, t.maxHp);
+  assert.equal(w.logic.adminHack(guest, { a: 'god' }), false);
+  assert.equal(w.logic.adminHack(admin, { a: 'god' }), true);
+  assert.equal(admin.adminGod, true);
 });
 
 test('programmable builder compiles homing and tactical projectile commands', () => {
@@ -74,5 +90,6 @@ test('the ten new modes and four new themes are constructible', () => {
     const w = new World({ mode, seed: 101, settings: { bots: 0, theme: 'neon' } });
     assert.equal(w.mode, mode);
     assert.equal(w.map.kind, 'arena');
+    assert.ok(MODES[mode].objective);
   }
 });

@@ -26,6 +26,10 @@ test('accounts: sign up, log in, admin code, shop, awards', async () => {
   const u2 = await s.session(token);
   assert.equal(u2.coins, 200 + 800, 'coin award is capped per call');
   assert.ok(u2.unlocks.includes('scorch'));
+  await s.award('Tester', { score: 12345 });
+  const saved = await s.session(token);
+  assert.equal(saved.score, 12345);
+  assert.equal((await s.award('Tester', { score: 10 })).score, 12345);
   const bought = await s.buy(u2, 'skin:gold');
   assert.ok(bought.owned.includes('skin:gold'));
   assert.equal(bought.equip.skin, 'gold');
