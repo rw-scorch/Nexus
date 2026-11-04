@@ -1,6 +1,6 @@
 # Nexus: Infinite Warfare
 
-Browser multiplayer tank game with accounts, a shop, admin tools, a tank builder and a map builder. Authoritative server, 377 tanks with distinct signature weapons, 20 bosses, Nexus Siege, Relic Rush, Gauntlet, ten new event modes, Safe Invasion squadron combat, Battle mode with no leveling, arras-style Maze maps, procedural Labyrinths in ten themes, bots, touch controls.
+Browser multiplayer tank game with accounts, a shop, admin tools, a tank builder and a map builder. Authoritative server, 302 tanks with distinct signature weapons, 20 bosses, Nexus Siege, Relic Rush, Gauntlet, ten new event modes, Safe Invasion squadron combat, Battle mode with no leveling, arras-style Maze maps, procedural Labyrinths in ten themes, bots, touch controls.
 
 The game is two programs:
 
@@ -128,7 +128,7 @@ The importer parses the upstream files with `acorn` and reads them as data. It n
 
 ### Content
 
-- **Tanks** (`shared/tank-registry.js`): the arras.io class tree plus 100 generated expansion tanks in `shared/expansion-tanks.js`. Basic upgrades at level 15 to Twin, Sniper, Machine Gun, Flank Guard, Director, Pounder, Trapper or Desmos, then on through levels 30, 45 and 60. Barrel positions, sizes, trapezoid shapes, auto turrets and weapon numbers come from `shared/data/arras-tanks.js`, which is generated from Open Source Arras (MIT, see `THIRD_PARTY_NOTICES.md`). Arms Race tanks sit at level 60. Nexus originals (`shared/nexus-tanks.js`, orange in the tree) add energy beams, chain lightning, gravity pulls and homing missiles.
+- **Tanks** (`shared/tank-registry.js`): the arras.io class tree plus 25 generated Smasher expansion tanks in `shared/expansion-tanks.js`. Basic upgrades at level 15 to Twin, Sniper, Machine Gun, Flank Guard, Director, Pounder, Trapper or Desmos, then on through levels 30, 45 and 60. Barrel positions, sizes, trapezoid shapes, auto turrets and weapon numbers come from `shared/data/arras-tanks.js`, which is generated from Open Source Arras (MIT, see `THIRD_PARTY_NOTICES.md`). Arms Race tanks sit at level 60. Nexus originals (`shared/nexus-tanks.js`, orange in the tree) add energy beams, chain lightning, gravity pulls and homing missiles.
 - **Battle and Team Battle**: no leveling. You spawn at level 60 with 42 stat points and any tank you pick in the menu (or with the Tanks button / B key in game).
 - **Progression**: levels 15, 30, 45 and 60 unlock the next upgrades; 8 stat upgrades; relic cores can fund Nexus Siege team upgrades or three in-match Relic Forge paths (Plating, Capacitors and Impact). Smasher now has additional level 45 and 60 impact-focused branches. Sandbox mode can select any tank.
 - **Modes**: Relic Rush periodically surfaces core pickups near the centre, while Gauntlet escalates elite waves for two teams. Standard progression modes now schedule timed bosses on a fixed 20-minute cadence.

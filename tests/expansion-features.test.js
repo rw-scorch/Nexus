@@ -6,10 +6,10 @@ import { EXPANSION_TANKS } from '../public/shared/expansion-tanks.js';
 import { TANKS_BY_ID } from '../public/shared/tank-registry.js';
 import { cleanDesign, compileScript, buildCustomRaw } from '../public/shared/custom-tanks.js';
 
-test('expansion adds exactly 100 selectable tanks, including deeper Smasher paths', () => {
-  assert.equal(EXPANSION_TANKS.length, 100);
-  assert.equal(new Set(EXPANSION_TANKS.map(t => t.id)).size, 100);
-  assert.ok(EXPANSION_TANKS.filter(t => t.smasher).length >= 25);
+test('expansion adds the deeper Smasher paths', () => {
+  assert.equal(EXPANSION_TANKS.length, 25);
+  assert.equal(new Set(EXPANSION_TANKS.map(t => t.id)).size, 25);
+  assert.equal(EXPANSION_TANKS.filter(t => t.smasher).length, 25);
   assert.ok(EXPANSION_TANKS.some(t => t.level === 45 && t.parents.includes('smasher')));
   assert.ok(EXPANSION_TANKS.every(t => TANKS_BY_ID.has(t.parents[0])));
 });
