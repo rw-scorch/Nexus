@@ -144,25 +144,31 @@ function placeRoom(rng, cw, ch, size, list, tries = 60, region = null) {
   return null;
 }
 
-export function generateLabyrinth(seed, theme = 'classic') {
+export function generateLabyrinth(seed, theme = 'classic', width, height) {
+  const defaultSize = theme === 'endless' ? 79 : 49;
+  const targetW = Math.max(25, Math.min(300, Math.round(Number(width) || defaultSize)));
+  const targetH = Math.max(25, Math.min(300, Math.round(Number(height) || defaultSize)));
   for (let attempt = 0; attempt < 12; attempt++) {
-    const map = tryLabyrinth(seed + attempt * 7919, theme);
+    const map = tryLabyrinth(seed + attempt * 7919, theme, targetW, targetH);
     const v = validateMap(map);
     if (v.ok) { map.validation = v; map.attempts = attempt + 1; return map; }
     if (attempt === 11) { map.validation = v; map.attempts = attempt + 1; return map; }
   }
 }
 
-function tryLabyrinth(seed, theme) {
+function tryLabyrinth(seed, theme, width, height) {
   const rng = makeRng(seed);
-  const big = theme === 'endless';
-  const cw = big ? 26 : 16, ch = big ? 26 : 16;
-  const w = cw * 3 + 1, h = ch * 3 + 1;
+  const cw = Math.max(8, Math.floor((width - 1) / 3));
+  const ch = Math.max(8, Math.floor((height - 1) / 3));
+  const big = theme === 'endless' || cw >= 24 || ch >= 24;
+  const w = width, h = height;
   const map = { w, h, tiles: blank(w, h, T.WALL), theme, seed, kind: 'labyrinth', rooms: [], spawns: [], teleporters: [], doors: [], conveyors: new Map(), regions: [], mobSpots: [], features: [] };
   const regions = big
     ? [
-      { x0: 0, x1: 13, y0: 0, y1: 13, theme: 'crystal' }, { x0: 13, x1: 26, y0: 0, y1: 13, theme: 'industrial' },
-      { x0: 0, x1: 13, y0: 13, y1: 26, theme: 'overgrown' }, { x0: 13, x1: 26, y0: 13, y1: 26, theme: 'void' }
+      { x0: 0, x1: Math.ceil(cw / 2), y0: 0, y1: Math.ceil(ch / 2), theme: 'crystal' },
+      { x0: Math.ceil(cw / 2), x1: cw, y0: 0, y1: Math.ceil(ch / 2), theme: 'industrial' },
+      { x0: 0, x1: Math.ceil(cw / 2), y0: Math.ceil(ch / 2), y1: ch, theme: 'overgrown' },
+      { x0: Math.ceil(cw / 2), x1: cw, y0: Math.ceil(ch / 2), y1: ch, theme: 'void' }
     ]
     : [{ x0: 0, x1: cw, y0: 0, y1: ch, theme }];
   map.regions = regions.map(r => ({ x: r.x0 * 3 * TILE, y: r.y0 * 3 * TILE, w: (r.x1 - r.x0) * 3 * TILE, h: (r.y1 - r.y0) * 3 * TILE, theme: r.theme }));
@@ -564,11 +570,11 @@ export function buildCustomMap(cm, teams, seed = 1) {
   return map;
 }
 
-export function generateMap(mode, seed, theme, customMap = null) {
+export function generateMap(mode, seed, theme, customMap = null, settings = {}) {
   if (customMap && mode !== 'nexus' && !String(mode).startsWith('labyrinth')) return buildCustomMap(customMap, mode === 'tdm' || mode === 'battle_team' || mode === 'maze_team' || mode === 'gauntlet' || mode === 'infection' || mode === 'convoy' || mode === 'relay' || mode === 'titanfall' || mode === 'safe_invasion' || mode === 'squadron', seed);
   if (mode === 'nexus') return generateNexusMap(seed);
   if (mode === 'maze' || mode === 'maze_team') return generateMaze(seed, mode === 'maze_team');
-  if (mode === 'labyrinth' || mode === 'labyrinth_team') return generateLabyrinth(seed, THEMES.includes(theme) ? theme : 'classic');
+  if (mode === 'labyrinth' || mode === 'labyrinth_team') return generateLabyrinth(seed, THEMES.includes(theme) ? theme : 'classic', settings.labyrinthWidth, settings.labyrinthHeight);
   return generateArena(seed, mode === 'tdm' || mode === 'battle_team' || mode === 'infection' || mode === 'convoy' || mode === 'relay' || mode === 'titanfall' || mode === 'safe_invasion' || mode === 'squadron');
 }
 

@@ -132,6 +132,7 @@ The importer parses the upstream files with `acorn` and reads them as data. It n
 - **Battle and Team Battle**: no leveling. You spawn at level 60 with 42 stat points and any tank you pick in the menu (or with the Tanks button / B key in game).
 - **Progression**: levels 15, 30, 45 and 60 unlock the next upgrades; 8 stat upgrades; relic cores can fund Nexus Siege team upgrades or three in-match Relic Forge paths (Plating, Capacitors and Impact). Smasher now has additional level 45 and 60 impact-focused branches. Sandbox mode can select any tank.
 - **Modes**: Relic Rush periodically surfaces core pickups near the centre, while Gauntlet escalates elite waves for two teams. Standard progression modes now schedule timed bosses on a fixed 20-minute cadence.
+- **Game customization**: room creators and admins can set the active boss cap up to 20 and choose Labyrinth width and height independently from 25 to 300 tiles, including 100x100 and larger maps.
 - **Bosses** (`shared/boss-registry.js`): 20 data-defined bosses composed from 26 attack primitives, each with phases, telegraphed attacks and, for seven of them, destructible or moving components.
 - **Maps** (`shared/map-generator.js`): seeded maze plus rooms, braided for alternate routes, sealed secret rooms behind breakable walls, boss chambers with shrines, validated by flood fill before use.
 

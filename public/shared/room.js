@@ -21,7 +21,9 @@ function cleanSettings(s = {}, mode) {
     deathRule: ['reset', 'keepThird', 'keepHalf'].includes(s.deathRule) ? s.deathRule : d.deathRule,
     theme: THEMES.includes(s.theme) ? s.theme : d.theme,
     bossInterval: num(s.bossInterval, 60, 900, d.bossInterval),
-    maxBosses: num(s.maxBosses, 0, 4, d.maxBosses),
+    maxBosses: num(s.maxBosses, 0, 20, d.maxBosses),
+    labyrinthWidth: num(s.labyrinthWidth, 25, 300, d.labyrinthWidth),
+    labyrinthHeight: num(s.labyrinthHeight, 25, 300, d.labyrinthHeight),
     nexusShield: num(s.nexusShield, 1000, 30000, d.nexusShield),
     nexusHp: num(s.nexusHp, 2000, 80000, d.nexusHp),
     customMap: s.customMap && typeof s.customMap === 'object' && typeof s.customMap.tiles === 'string' ? { w: num(s.customMap.w, 24, 120, 72), h: num(s.customMap.h, 24, 120, 72), tiles: s.customMap.tiles.slice(0, 14400), spawns: Array.isArray(s.customMap.spawns) ? s.customMap.spawns.slice(0, 64) : [] } : null

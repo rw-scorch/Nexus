@@ -199,7 +199,7 @@ export class AccountStore {
     }
     const s = b.settings && typeof b.settings === 'object' ? b.settings : {};
     const settings = {};
-    for (const k of ['bots', 'botDifficulty', 'deathRule', 'theme', 'bossInterval', 'maxBosses', 'friendlyFire', 'fog', 'nexusShield', 'nexusHp']) if (s[k] !== undefined) settings[k] = s[k];
+    for (const k of ['bots', 'botDifficulty', 'deathRule', 'theme', 'bossInterval', 'maxBosses', 'labyrinthWidth', 'labyrinthHeight', 'friendlyFire', 'fog', 'nexusShield', 'nexusHp']) if (s[k] !== undefined) settings[k] = s[k];
     const g = { code, name, mode, settings, mapId, mapName, by: u.name, created: Date.now() };
     await this.kv.put(`game:${code}`, g);
     return g;

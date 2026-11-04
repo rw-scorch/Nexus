@@ -19,7 +19,7 @@ export class World {
     this.settings = { ...DEFAULT_SETTINGS, ...settings };
     this.seed = seed >>> 0;
     this.rng = makeRng(this.seed ^ 0x9e3779b9);
-    this.map = generateMap(mode, this.seed, this.settings.theme, this.settings.customMap || null);
+    this.map = generateMap(mode, this.seed, this.settings.theme, this.settings.customMap || null, this.settings);
     this.tiles = this.map.tiles;
     this.w = this.map.w;
     this.h = this.map.h;

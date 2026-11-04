@@ -90,6 +90,15 @@ test('themes change gameplay tiles, not just colours', () => {
   assert.ok(end.w > 70 && end.regions.length === 4);
 });
 
+test('custom labyrinth dimensions support 100x100 and larger requested maps', () => {
+  for (const [width, height] of [[100, 100], [150, 120]]) {
+    const m = generateLabyrinth(8080 + width, 'classic', width, height);
+    assert.equal(m.w, width);
+    assert.equal(m.h, height);
+    assert.equal(m.validation.ok, true, m.validation.errors.join('; '));
+  }
+});
+
 test('nexus and arena maps validate', () => {
   for (const seed of SEEDS.slice(0, 8)) {
     assert.ok(validateMap(generateNexusMap(seed)).ok);

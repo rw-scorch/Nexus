@@ -221,7 +221,9 @@ export class Menus {
         <div class="field"><label>Bot difficulty</label><select id="${prefix}-diff"><option>easy</option><option selected>normal</option><option>hard</option></select></div>
         <div class="field"><label>Death rule</label><select id="${prefix}-death"><option value="keepThird" selected>Keep a third of your level</option><option value="keepHalf">Keep half of your level</option><option value="reset">Restart at level 1</option></select></div>
         <div class="field"><label>Boss interval (seconds)</label><input id="${prefix}-bint" type="number" min="60" max="900" value="150"></div>
-        <div class="field"><label>Max active bosses</label><input id="${prefix}-bmax" type="number" min="0" max="4" value="2"></div>
+        <div class="field"><label>Max active bosses</label><input id="${prefix}-bmax" type="number" min="0" max="20" value="2"></div>
+        <div class="field"><label>Labyrinth width</label><input id="${prefix}-lw" type="number" min="25" max="300" value="49"></div>
+        <div class="field"><label>Labyrinth height</label><input id="${prefix}-lh" type="number" min="25" max="300" value="49"></div>
         <div class="field"><label>Nexus shield</label><input id="${prefix}-nsh" type="number" min="1000" max="30000" step="500" value="6000"></div>
         <div class="field"><label>Nexus health</label><input id="${prefix}-nhp" type="number" min="2000" max="80000" step="1000" value="20000"></div>
         <div class="field"><label>Options</label><label style="text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" id="${prefix}-ff"> Friendly fire</label><label style="text-transform:none;letter-spacing:0;color:var(--text)"><input type="checkbox" id="${prefix}-fog" checked> Labyrinth fog of war</label></div>
@@ -234,7 +236,7 @@ export class Menus {
       mode: v('mode').value,
       settings: {
         theme: v('theme').value, bots: Number(v('bots').value), botDifficulty: v('diff').value, deathRule: v('death').value,
-        bossInterval: Number(v('bint').value), maxBosses: Number(v('bmax').value), nexusShield: Number(v('nsh').value), nexusHp: Number(v('nhp').value),
+        bossInterval: Number(v('bint').value), maxBosses: Number(v('bmax').value), labyrinthWidth: Number(v('lw').value), labyrinthHeight: Number(v('lh').value), nexusShield: Number(v('nsh').value), nexusHp: Number(v('nhp').value),
         friendlyFire: v('ff').checked, fog: v('fog').checked
       }
     };
@@ -635,6 +637,7 @@ export class Menus {
           <div class="row"><div class="field" style="flex:1"><label>Mode</label><select id="ad-mode">${modes}</select></div><div class="field" style="flex:1"><label>Room code (optional)</label><input id="ad-code" maxlength="24" placeholder="auto"></div></div>
           <div class="row"><div class="field" style="flex:1"><label>Map</label><select id="ad-map"><option value="">Generated map</option></select></div><div class="field" style="width:90px"><label>Bots</label><input id="ad-bots" type="number" min="0" max="16" value="6"></div></div>
           <div class="row"><div class="field" style="flex:1"><label>Bot difficulty</label><select id="ad-diff"><option>easy</option><option selected>normal</option><option>hard</option></select></div><div class="field" style="flex:1"><label>Labyrinth theme</label><select id="ad-theme">${THEMES.map(t => `<option value="${t}">${MAP_THEMES[t].name}</option>`).join('')}</select></div></div>
+          <div class="row"><div class="field" style="flex:1"><label>Max active bosses</label><input id="ad-bmax" type="number" min="0" max="20" value="2"></div><div class="field" style="flex:1"><label>Labyrinth size (W × H)</label><div class="row"><input id="ad-lw" type="number" min="25" max="300" value="49"><input id="ad-lh" type="number" min="25" max="300" value="49"></div></div></div>
           <label class="chk"><input type="checkbox" id="ad-ff"> Friendly fire</label>
           <button class="btn green block" data-act="adstart" style="margin-top:10px">Start game</button>
           <p class="muted" id="ad-msg" style="font-size:13px;min-height:1.4em"></p>
@@ -667,7 +670,7 @@ export class Menus {
     const v = id => this.root.querySelector(id);
     const msg = v('#ad-msg');
     if (a === 'adstart') {
-      const body = { name: v('#ad-name').value, mode: v('#ad-mode').value, code: v('#ad-code').value, mapId: v('#ad-map').value || undefined, settings: { bots: Number(v('#ad-bots').value), botDifficulty: v('#ad-diff').value, theme: v('#ad-theme').value, friendlyFire: v('#ad-ff').checked } };
+      const body = { name: v('#ad-name').value, mode: v('#ad-mode').value, code: v('#ad-code').value, mapId: v('#ad-map').value || undefined, settings: { bots: Number(v('#ad-bots').value), botDifficulty: v('#ad-diff').value, theme: v('#ad-theme').value, maxBosses: Number(v('#ad-bmax').value), labyrinthWidth: Number(v('#ad-lw').value), labyrinthHeight: Number(v('#ad-lh').value), friendlyFire: v('#ad-ff').checked } };
       const r = await api('/api/admin/game', body);
       if (r.error) { msg.textContent = r.error; return; }
       msg.textContent = `Started ${r.game.name} (code ${r.game.code}). It is now on everyone's game list.`;

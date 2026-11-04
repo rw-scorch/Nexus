@@ -78,6 +78,8 @@ export const DEFAULT_SETTINGS = {
   theme: 'classic',
   bossInterval: 1200,
   maxBosses: 2,
+  labyrinthWidth: 49,
+  labyrinthHeight: 49,
   nexusShield: 6000,
   nexusHp: 20000
 };
